@@ -1,0 +1,71 @@
+language: go
+go:
+- tip
+env:
+  global:
+  - GITHUB_REPO: dfordsoft/getwxmp
+  - GIT_NAME: missdeer
+  - GIT_EMAIL: missdeer@dfordsoft.com
+deploy:
+  provider: releases
+  api_key:
+    secure: fZA+1tLgzY9JZBdVx8NCVtR47hfWfwXR6skrwCC79pwEkD8EHzJKoYtsufgtyWG/5gzOyMuZwB8B/E3X6+IiZtxp7a/gZJVAZlzofd9W3vgbtVMnkq93SFlWycnSHNypASCROUWgGj9BL1IahpX0VPxoe7POtG+rDLNGXon6V0FAaevqEroQEojfXsFuQ1BoUa8WCxqXWKj0PIT/d87TmvpLZwl21WEiiILRLWfA+xZKe4CatM5totAgr19tspJE1/YYkuzf0t9sNZpDTxI7GOJlD+/mnTU4WamL5wK1911L/aBQjQ2YMeSerqkz0c0Kj/m41tuvx+HW9bYCv8lMG48msDzyeyEZAvs25IRXdk4Pui5ByoTHUTr9t7bD424ludkbNK/5v3KCtXDV39hDlHdFZp7dbwpODi6BzdWhrMMYV4o/TISZiKRnk3gmIU3WUL4W4gWdVSiLC1uCue7wElzayM3HtcvpXMQSzBkd6DFUCV3IjzHBijZM3sRuEbb21WZXkDBEihEWWbbUn40ZjyQ3QLHfO90KS8ff1/HZr7YmxgjhRx3uVkahSGOjg1e4otRr9ZcllMKPCpwK26zO1JgDYMspxIDMMHWovY93buMBt4uRSUfeClvoqga8XoJ3m/PBx9u8Ai37VIeAAEVar9MZ0WBn6kL33wzxhNeOXew=
+  file:
+    - getwxmp-darwin-amd64.tar.gz
+    - getwxmp-dragonflybsd-amd64.tar.gz
+    - getwxmp-freebsd-amd64.tar.gz
+    - getwxmp-freebsd-arm.tar.gz
+    - getwxmp-freebsd-x86.tar.gz
+    - getwxmp-linux-amd64.tar.gz
+    - getwxmp-linux-arm64.tar.gz
+    - getwxmp-linux-armv6.tar.gz
+    - getwxmp-linux-armv7.tar.gz
+    - getwxmp-linux-mips64.tar.gz
+    - getwxmp-linux-mips64le.tar.gz
+    - getwxmp-linux-mips.tar.gz
+    - getwxmp-linux-mipsle.tar.gz
+    - getwxmp-linux-ppc64.tar.gz
+    - getwxmp-linux-ppc64le.tar.gz
+    - getwxmp-linux-x86.tar.gz
+    - getwxmp-netbsd-amd64.tar.gz
+    - getwxmp-netbsd-arm.tar.gz
+    - getwxmp-netbsd-x86.tar.gz
+    - getwxmp-openbsd-amd64.tar.gz
+    - getwxmp-openbsd-x86.tar.gz
+    - getwxmp-solaris-amd64.tar.gz
+    - getwxmp-windows-amd64.tar.gz
+    - getwxmp-windows-x86.tar.gz
+  on:
+    repo: dfordsoft/getwxmp
+    tags: true
+  skip_cleanup: true
+install:
+  - go get github.com/dfordsoft/getwxmp
+script:
+  - pwd && ls -l
+  - env GOARCH=amd64 GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-amd64.tar.gz getwxmp
+  - env GOARCH=386 GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-x86.tar.gz getwxmp
+  - env GOARCH=arm GOARM=5 GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-armv5.tar.gz getwxmp
+  - env GOARCH=arm GOARM=6 GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-armv6.tar.gz getwxmp
+  - env GOARCH=arm GOARM=7 GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-armv7.tar.gz getwxmp
+  - env GOARCH=arm64 GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-arm64.tar.gz getwxmp
+  - env GOARCH=ppc64 GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-ppc64.tar.gz getwxmp
+  - env GOARCH=ppc64le GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-ppc64le.tar.gz getwxmp
+  - env GOARCH=mips64 GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-mips64.tar.gz getwxmp
+  - env GOARCH=mips64le GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-mips64le.tar.gz getwxmp
+  - env GOARCH=mips GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-mips.tar.gz getwxmp
+  - env GOARCH=mipsle GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-mipsle.tar.gz getwxmp
+  - env GOARCH=amd64 GOOS=darwin go build  && tar czvf getwxmp-darwin-amd64.tar.gz getwxmp
+  - env GOARCH=amd64 GOOS=windows go build  && tar czvf getwxmp-windows-amd64.tar.gz getwxmp.exe
+  - env GOARCH=386 GOOS=windows go build  && tar czvf getwxmp-windows-x86.tar.gz getwxmp.exe
+  - env GOARCH=amd64 GOOS=freebsd go build  && tar czvf getwxmp-freebsd-amd64.tar.gz getwxmp
+  - env GOARCH=386 GOOS=freebsd go build  && tar czvf getwxmp-freebsd-x86.tar.gz getwxmp
+  - env GOARCH=arm GOOS=freebsd go build  && tar czvf getwxmp-freebsd-arm.tar.gz getwxmp
+  - env GOARCH=amd64 GOOS=openbsd go build  && tar czvf getwxmp-openbsd-amd64.tar.gz getwxmp
+  - env GOARCH=386 GOOS=openbsd go build  && tar czvf getwxmp-openbsd-x86.tar.gz getwxmp
+  - env GOARCH=amd64 GOOS=netbsd go build  && tar czvf getwxmp-netbsd-amd64.tar.gz getwxmp
+  - env GOARCH=386 GOOS=netbsd go build  && tar czvf getwxmp-netbsd-x86.tar.gz getwxmp
+  - env GOARCH=arm GOOS=netbsd go build  && tar czvf getwxmp-netbsd-arm.tar.gz getwxmp
+  - env GOARCH=amd64 GOOS=dragonfly go build  && tar czvf getwxmp-dragonflybsd-amd64.tar.gz getwxmp
+  - env GOARCH=amd64 GOOS=solaris go build  && tar czvf getwxmp-solaris-amd64.tar.gz getwxmp
+  - ls -l
