@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -9,8 +8,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -42,20 +41,6 @@ func setCA(caCert, caKey string) error {
 	return nil
 }
 
-func onRequestWeixinMPArticle(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
-	if articleRequestURL != "" {
-		return req, nil
-	}
-	articleRequestURL = req.URL.String()
-	articleRequestHeader = req.Header
-	fmt.Println(req.URL.String())
-	for k, v := range req.Header {
-		fmt.Println("    ", k, v)
-	}
-	fmt.Printf("========================================================================\n\n")
-	return req, nil
-}
-
 func onRequestWeixinMPArticleList(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
 	if articleListRequestURL != "" {
 		return req, nil
@@ -71,6 +56,8 @@ func onRequestWeixinMPArticleList(req *http.Request, ctx *goproxy.ProxyCtx) (*ht
 }
 
 func getArticleList() {
+	rand.Seed(time.Now().UnixNano())
+	count := 0
 	for i := 0; ; i += 10 {
 		u := strings.Replace(articleListRequestURL, "offset=0", fmt.Sprintf("offset=%d", i), -1)
 		b, e := httputil.GetBytes(u, articleListRequestHeader, 30*time.Second, 3)
@@ -92,15 +79,19 @@ func getArticleList() {
 		}
 
 		for _, v := range list.List {
+			count++
+			fmt.Println(v.AppMsgExtInfo.Title, strings.Replace(v.AppMsgExtInfo.ContentURL, `&amp;`, `&`, -1))
 			for _, vv := range v.AppMsgExtInfo.MultiAppMsgItemList {
+				count++
 				fmt.Println(vv.Title, strings.Replace(vv.ContentURL, `&amp;`, `&`, -1))
 			}
 		}
 
 		if m.CanMsgContinue == 0 {
+			fmt.Println("全部采集完成！一共", count, "篇文章。")
 			break
 		}
-		time.Sleep(1 * time.Second)
+		time.Sleep(time.Duration(rand.Intn(4000)+1000) * time.Millisecond)
 	}
 }
 
@@ -122,36 +113,6 @@ func (rfcb *readFirstCloseBoth) Close() error {
 		return err1
 	}
 	return err2
-}
-
-func handleArticle(resp *http.Response, ctx *goproxy.ProxyCtx) *http.Response {
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		ctx.Warnf("Cannot read string from resp body: %v", err)
-		return resp
-	}
-	resp.Body.Close()
-	for k, v := range resp.Request.Header {
-		fmt.Println("    ", k, v)
-	}
-	resp.Body = &readFirstCloseBoth{ioutil.NopCloser(bytes.NewBuffer(b)), resp.Body}
-	fmt.Printf("-----------------------------------------------------------------------\n\n")
-	return resp
-}
-
-func handleProfileExt(resp *http.Response, ctx *goproxy.ProxyCtx) *http.Response {
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		ctx.Warnf("Cannot read string from resp body: %v", err)
-		return resp
-	}
-	resp.Body.Close()
-	for k, v := range resp.Request.Header {
-		fmt.Println("    ", k, v)
-	}
-	resp.Body = &readFirstCloseBoth{ioutil.NopCloser(bytes.NewBuffer(b)), resp.Body}
-	fmt.Printf("-----------------------------------------------------------------------\n\n")
-	return resp
 }
 
 type getMsgResponse struct {
@@ -201,26 +162,6 @@ type mpList struct {
 	} `json:"list"`
 }
 
-func handleMsgList(s string, ctx *goproxy.ProxyCtx) string {
-	var m getMsgResponse
-	if err := json.Unmarshal([]byte(s), &m); err != nil {
-		log.Fatalln(err)
-		return s
-	}
-
-	var list mpList
-	err := json.Unmarshal([]byte(m.GeneralMsgList), &list)
-	if err != nil {
-		log.Fatalln(err)
-		return s
-	}
-
-	fmt.Println(list)
-
-	fmt.Printf("\n\n")
-	return s
-}
-
 func main() {
 	verbose := flag.Bool("v", false, "should every proxy request be logged to stdout")
 	addr := flag.String("addr", ":8080", "proxy listen address")
@@ -234,11 +175,6 @@ func main() {
 	proxy.OnRequest().HandleConnect(goproxy.AlwaysMitm)
 
 	var r goproxy.ReqConditionFunc = func(req *http.Request, ctx *goproxy.ProxyCtx) bool {
-		return strings.Contains(req.URL.String(), "mp.weixin.qq.com:443/s")
-	}
-	proxy.OnRequest(r).DoFunc(onRequestWeixinMPArticle)
-
-	r = func(req *http.Request, ctx *goproxy.ProxyCtx) bool {
 		return strings.Contains(req.URL.String(), "action=getmsg")
 	}
 	proxy.OnRequest(r).DoFunc(onRequestWeixinMPArticleList)
