@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/elazarl/goproxy"
+	"github.com/elazarl/goproxy/ext/html"
 )
 
 func setCA(caCert, caKey string) error {
@@ -37,7 +39,7 @@ func onRequestWeixinMP(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request,
 	for k, v := range req.Header {
 		fmt.Println("    ", k, v)
 	}
-	fmt.Println("========================================================================\n\n")
+	fmt.Printf("========================================================================\n\n")
 	return req, nil
 }
 
@@ -47,14 +49,8 @@ func onResponseWeixinMP(resp *http.Response, ctx *goproxy.ProxyCtx) *http.Respon
 		// article
 		fmt.Println()
 	}
-	fmt.Println("************************************************************************\n\n")
+	fmt.Printf("************************************************************************\n\n")
 	return resp
-}
-
-func urlContains(u string) goproxy.ReqConditionFunc {
-	return func(req *http.Request, ctx *goproxy.ProxyCtx) bool {
-		return strings.Contains(req.URL.String(), u)
-	}
 }
 
 type readFirstCloseBoth struct {
@@ -88,7 +84,7 @@ func handleArticle(resp *http.Response, ctx *goproxy.ProxyCtx) *http.Response {
 		fmt.Println("    ", k, v)
 	}
 	resp.Body = &readFirstCloseBoth{ioutil.NopCloser(bytes.NewBuffer(b)), resp.Body}
-	fmt.Println("-----------------------------------------------------------------------\n\n")
+	fmt.Printf("-----------------------------------------------------------------------\n\n")
 	return resp
 }
 
@@ -103,8 +99,75 @@ func handleProfileExt(resp *http.Response, ctx *goproxy.ProxyCtx) *http.Response
 		fmt.Println("    ", k, v)
 	}
 	resp.Body = &readFirstCloseBoth{ioutil.NopCloser(bytes.NewBuffer(b)), resp.Body}
-	fmt.Println("-----------------------------------------------------------------------\n\n")
+	fmt.Printf("-----------------------------------------------------------------------\n\n")
 	return resp
+}
+
+type getMsgResponse struct {
+	Ret            int    `json:"ret"`
+	ErrMsg         string `json:"errmsg"`
+	MsgCount       int    `json:"msg_count"`
+	CanMsgContinue int    `json:"can_msg_continue"`
+	GeneralMsgList string `json:"general_msg_list"`
+}
+
+type mpList struct {
+	List []struct {
+		CommMsgInfo struct {
+			ID       int    `json:"id"`
+			Type     int    `json:"type"`
+			DateTime int    `json:"datetime"`
+			FakeID   string `json:"fakeid"`
+			Status   int    `json:"status"`
+			Content  string `json:"content"`
+		} `json:"comm_msg_info"`
+		AppMsgExtInfo struct {
+			Title               string `json:"title"`
+			Digest              string `json:"digest"`
+			Content             string `json:"content"`
+			FileID              int    `json:"fileid"`
+			ContentURL          string `json:"content_url"`
+			SourceURL           string `json:"source_url"`
+			Cover               string `json:"cover"`
+			SubType             int    `json:"subtype"`
+			IsMulti             int    `json:"is_multi"`
+			MultiAppMsgItemList []struct {
+				Title         string `json:"title"`
+				Digest        string `json:"digest"`
+				Content       string `json:"content"`
+				FileID        int    `json:"fileid"`
+				ContentURL    string `json:"content_url"`
+				SourceURL     string `json:"source_url"`
+				Cover         string `json:"cover"`
+				Author        string `json:"author"`
+				CopyrightStat int    `json:"copyright_stat"`
+				DelFlag       int    `json:"del_flag"`
+			} `json:"multi_app_msg_item_list"`
+			Author        string `json:"author"`
+			CopyrightStat int    `json:"copyright_stat"`
+			DelFlag       int    `json:"del_flag"`
+		} `json:"app_msg_ext_info"`
+	} `json:"list"`
+}
+
+func handleMsgList(s string, ctx *goproxy.ProxyCtx) string {
+	var m getMsgResponse
+	if err := json.Unmarshal([]byte(s), &m); err != nil {
+		log.Fatalln(err)
+		return s
+	}
+
+	var list mpList
+	err := json.Unmarshal([]byte(m.GeneralMsgList), &list)
+	if err != nil {
+		log.Fatalln(err)
+		return s
+	}
+
+	fmt.Println(list)
+
+	fmt.Printf("\n\n")
+	return s
 }
 
 func main() {
@@ -118,9 +181,26 @@ func main() {
 	}
 	proxy := goproxy.NewProxyHttpServer()
 	proxy.OnRequest().HandleConnect(goproxy.AlwaysMitm)
-	proxy.OnRequest(goproxy.DstHostIs("mp.weixin.qq.com:443")).DoFunc(onRequestWeixinMP)
-	proxy.OnResponse(urlContains("mp.weixin.qq.com:443/s")).DoFunc(handleArticle)
-	proxy.OnResponse(urlContains("mp.weixin.qq.com:443/mp/profile_ext")).DoFunc(handleProfileExt)
+
+	var r goproxy.ReqConditionFunc = func(req *http.Request, ctx *goproxy.ProxyCtx) bool {
+		return strings.Contains(req.URL.String(), "mp.weixin.qq.com:443/s")
+	}
+	proxy.OnRequest(r).DoFunc(onRequestWeixinMP)
+
+	r = func(req *http.Request, ctx *goproxy.ProxyCtx) bool {
+		return strings.Contains(req.URL.String(), "mp.weixin.qq.com:443/mp/profile_ext")
+	}
+	proxy.OnRequest(r).DoFunc(onRequestWeixinMP)
+
+	var f goproxy.RespConditionFunc = func(resp *http.Response, ctx *goproxy.ProxyCtx) bool {
+		return strings.Contains(resp.Request.URL.String(), "mp.weixin.qq.com:443/s")
+	}
+	proxy.OnResponse(f).DoFunc(handleArticle)
+
+	f = func(resp *http.Response, ctx *goproxy.ProxyCtx) bool {
+		return strings.Contains(resp.Request.URL.String(), "action=getmsg")
+	}
+	proxy.OnResponse(f).Do(goproxy_html.HandleString(handleMsgList))
 	proxy.Verbose = *verbose
 	log.Fatal(http.ListenAndServe(*addr, proxy))
 }
