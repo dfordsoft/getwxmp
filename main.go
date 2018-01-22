@@ -34,7 +34,16 @@ func setCA(caCert, caKey string) error {
 	return nil
 }
 
-func onRequestWeixinMP(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
+func onRequestWeixinMPArticle(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
+	fmt.Println(req.URL.String())
+	for k, v := range req.Header {
+		fmt.Println("    ", k, v)
+	}
+	fmt.Printf("========================================================================\n\n")
+	return req, nil
+}
+
+func onRequestWeixinMPArticleList(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
 	fmt.Println(req.URL.String())
 	for k, v := range req.Header {
 		fmt.Println("    ", k, v)
@@ -183,14 +192,14 @@ func main() {
 	proxy.OnRequest().HandleConnect(goproxy.AlwaysMitm)
 
 	var r goproxy.ReqConditionFunc = func(req *http.Request, ctx *goproxy.ProxyCtx) bool {
-		return strings.Contains(req.URL.String(), "mp.weixin.qq.com:443/s")
+		return strings.Contains(req.URL.String(), "mp.weixin.qq.com:443/s?biz")
 	}
-	proxy.OnRequest(r).DoFunc(onRequestWeixinMP)
+	proxy.OnRequest(r).DoFunc(onRequestWeixinMPArticle)
 
 	r = func(req *http.Request, ctx *goproxy.ProxyCtx) bool {
-		return strings.Contains(req.URL.String(), "mp.weixin.qq.com:443/mp/profile_ext")
+		return strings.Contains(req.URL.String(), "action=getmsg")
 	}
-	proxy.OnRequest(r).DoFunc(onRequestWeixinMP)
+	proxy.OnRequest(r).DoFunc(onRequestWeixinMPArticleList)
 
 	var f goproxy.RespConditionFunc = func(resp *http.Response, ctx *goproxy.ProxyCtx) bool {
 		return strings.Contains(resp.Request.URL.String(), "mp.weixin.qq.com:443/s")
