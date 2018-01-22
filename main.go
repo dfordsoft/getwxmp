@@ -13,9 +13,17 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/dfordsoft/golib/httputil"
 	"github.com/elazarl/goproxy"
-	"github.com/elazarl/goproxy/ext/html"
+)
+
+var (
+	articleRequestURL        string
+	articleRequestHeader     http.Header
+	articleListRequestURL    string
+	articleListRequestHeader http.Header
 )
 
 func setCA(caCert, caKey string) error {
@@ -35,6 +43,11 @@ func setCA(caCert, caKey string) error {
 }
 
 func onRequestWeixinMPArticle(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
+	if articleRequestURL != "" {
+		return req, nil
+	}
+	articleRequestURL = req.URL.String()
+	articleRequestHeader = req.Header
 	fmt.Println(req.URL.String())
 	for k, v := range req.Header {
 		fmt.Println("    ", k, v)
@@ -44,22 +57,51 @@ func onRequestWeixinMPArticle(req *http.Request, ctx *goproxy.ProxyCtx) (*http.R
 }
 
 func onRequestWeixinMPArticleList(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
-	fmt.Println(req.URL.String())
-	for k, v := range req.Header {
-		fmt.Println("    ", k, v)
+	if articleListRequestURL != "" {
+		return req, nil
 	}
-	fmt.Printf("========================================================================\n\n")
+	articleListRequestURL = req.URL.String()
+	articleListRequestHeader = req.Header
+	start := strings.Index(articleListRequestURL, "offset=")
+	end := strings.Index(articleListRequestURL[start:], "&")
+	articleListRequestURL = articleListRequestURL[:start] + "offset=0" + articleListRequestURL[start:][end:]
+	articleListRequestURL = strings.Replace(articleListRequestURL, ":443", "", -1)
+	go getArticleList()
 	return req, nil
 }
 
-func onResponseWeixinMP(resp *http.Response, ctx *goproxy.ProxyCtx) *http.Response {
-	fmt.Println(resp.Request.URL.Path)
-	if resp.Request.URL.Path == "/s" {
-		// article
-		fmt.Println()
+func getArticleList() {
+	for i := 0; ; i += 10 {
+		u := strings.Replace(articleListRequestURL, "offset=0", fmt.Sprintf("offset=%d", i), -1)
+		b, e := httputil.GetBytes(u, articleListRequestHeader, 30*time.Second, 3)
+		if e != nil {
+			log.Fatalln(e)
+			return
+		}
+		var m getMsgResponse
+		if err := json.Unmarshal(b, &m); err != nil {
+			log.Fatalln(err, string(b))
+			return
+		}
+
+		var list mpList
+		err := json.Unmarshal([]byte(m.GeneralMsgList), &list)
+		if err != nil {
+			log.Fatalln(err, m.GeneralMsgList)
+			return
+		}
+
+		for _, v := range list.List {
+			for _, vv := range v.AppMsgExtInfo.MultiAppMsgItemList {
+				fmt.Println(vv.Title, strings.Replace(vv.ContentURL, `&amp;`, `&`, -1))
+			}
+		}
+
+		if m.CanMsgContinue == 0 {
+			break
+		}
+		time.Sleep(1 * time.Second)
 	}
-	fmt.Printf("************************************************************************\n\n")
-	return resp
 }
 
 type readFirstCloseBoth struct {
@@ -192,7 +234,7 @@ func main() {
 	proxy.OnRequest().HandleConnect(goproxy.AlwaysMitm)
 
 	var r goproxy.ReqConditionFunc = func(req *http.Request, ctx *goproxy.ProxyCtx) bool {
-		return strings.Contains(req.URL.String(), "mp.weixin.qq.com:443/s?biz")
+		return strings.Contains(req.URL.String(), "mp.weixin.qq.com:443/s")
 	}
 	proxy.OnRequest(r).DoFunc(onRequestWeixinMPArticle)
 
@@ -201,15 +243,6 @@ func main() {
 	}
 	proxy.OnRequest(r).DoFunc(onRequestWeixinMPArticleList)
 
-	var f goproxy.RespConditionFunc = func(resp *http.Response, ctx *goproxy.ProxyCtx) bool {
-		return strings.Contains(resp.Request.URL.String(), "mp.weixin.qq.com:443/s")
-	}
-	proxy.OnResponse(f).DoFunc(handleArticle)
-
-	f = func(resp *http.Response, ctx *goproxy.ProxyCtx) bool {
-		return strings.Contains(resp.Request.URL.String(), "action=getmsg")
-	}
-	proxy.OnResponse(f).Do(goproxy_html.HandleString(handleMsgList))
 	proxy.Verbose = *verbose
 	log.Fatal(http.ListenAndServe(*addr, proxy))
 }
