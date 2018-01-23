@@ -168,6 +168,9 @@ func main() {
 	caCert := flag.String("cert", "cert/ca.cer", "set ca certificate file path")
 	caKey := flag.String("key", "cert/ca.key", "set ca private key file path")
 	flag.Parse()
+
+	go updateProxyPierodically()
+
 	if err := setCA(*caCert, *caKey); err != nil {
 		log.Fatalln(err)
 	}
