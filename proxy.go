@@ -46,20 +46,17 @@ func insertProxyItem(pi proxyItem) {
 func removeProxyItem(pi proxyItem) {
 	proxyPoolMutex.Lock()
 	defer proxyPoolMutex.Unlock()
-	index := -1
 	for i, p := range proxyPool {
 		if p.Type == pi.Type && p.Host == pi.Host && p.Port == pi.Port {
-			index = i
-			break
+			proxyPool = append(proxyPool[:i], proxyPool[i+1:]...)
+			return
 		}
 	}
-
-	proxyPool = append(proxyPool[:index], proxyPool[index+1:]...)
 }
 
 func getProxyItem() proxyItem {
 	proxyPoolMutex.RLock()
-	defer proxyPoolMutex.Unlock()
+	defer proxyPoolMutex.RUnlock()
 	if len(proxyPool) == 0 {
 		return proxyItem{}
 	}
@@ -82,7 +79,7 @@ func validateProxyItem(pi proxyItem) bool {
 
 	req, err := http.NewRequest("GET", "http://ip.cn", nil)
 	if err != nil {
-		fmt.Println(err)
+		//fmt.Println(err)
 		removeProxyItem(pi)
 		return false
 	}
@@ -90,7 +87,7 @@ func validateProxyItem(pi proxyItem) bool {
 	req.Header.Set("User-Agent", "curl/7.54.0")
 	resp, err := c.Do(req)
 	if err != nil {
-		fmt.Println(err)
+		//fmt.Println(err)
 		removeProxyItem(pi)
 		return false
 	}
@@ -98,13 +95,13 @@ func validateProxyItem(pi proxyItem) bool {
 
 	content, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println(err)
+		//fmt.Println(err)
 		removeProxyItem(pi)
 		return false
 	}
 
 	if len(content) > 200 {
-		fmt.Println("too long response is treated as unexpected response")
+		//fmt.Println("too long response is treated as unexpected response")
 		removeProxyItem(pi)
 		return false
 	}
@@ -165,6 +162,7 @@ doRequest:
 }
 
 func updateProxyPierodically() {
+	updateProxy()
 	ticker := time.NewTicker(15 * time.Minute)
 	for {
 		select {

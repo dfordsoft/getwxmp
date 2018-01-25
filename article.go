@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -89,7 +90,6 @@ var (
 )
 
 func downloadArticle(title string, u string) bool {
-	defer semaArticle.Release(1)
 doRequest:
 	pi := getProxyItem()
 	proxyString := fmt.Sprintf("%s://%s:%s", pi.Type, pi.Host, pi.Port)
@@ -137,8 +137,6 @@ doRequest:
 
 	contentHTML.Write(processArticle(title, content))
 	contentHTML.Close()
-
-	fmt.Println(title, u, " is downloaded")
 
 	return true
 }
@@ -194,22 +192,50 @@ doRequest:
 }
 
 func processArticle(title string, c []byte) []byte {
-	bytes.Replace(c, []byte("data-src="), []byte("src="), -1)
 	re, _ := regexp.Compile(`<img[^>]+>`)
 	b := re.FindAllSubmatch(c, -1)
 	m := make(map[string]string)
 	for _, bb := range b {
-		re2, _ := regexp.Compile(`src="([^"]+)"`)
+		re2, _ := regexp.Compile(`data\-src="([^"]+)"`)
 		cc := re2.FindAllSubmatch(bb[0], -1)
 		for i, ccc := range cc {
-			savePath := fmt.Sprintf("articles/%s/%d.jpg", title, i)
-			m[savePath] = string(ccc[1])
-			go downloadImage(savePath, string(ccc[1]))
+			originalURL := string(ccc[1])
+			begin := strings.Index(originalURL, "wx_fmt=")
+			ext := ""
+			if begin > 0 {
+				ext = originalURL[begin+7:]
+			}
+			end := strings.Index(ext, "\"")
+			if end > 0 {
+				ext = ext[:end]
+			}
+			fmt.Println(ext)
+			savePath := fmt.Sprintf("articles/%s/%d.%s", title, i, ext)
+			m[originalURL] = savePath
+			go downloadImage(savePath, originalURL)
+		}
+
+		re2, _ = regexp.Compile(` src="([^"]+)"`)
+		cc = re2.FindAllSubmatch(bb[0], -1)
+		for _, ccc := range cc {
+			originalURL := string(ccc[1])
+			fileName := originalURL
+			lastSlash := strings.LastIndex(fileName, "/")
+			if lastSlash > 0 {
+				fileName = fileName[lastSlash+1:]
+			}
+			savePath := fmt.Sprintf("articles/%s/%s", title, fileName)
+			m[originalURL] = savePath
+			if strings.HasPrefix(originalURL, "//") {
+				originalURL = "https:" + originalURL
+			}
+			go downloadImage(savePath, originalURL)
 		}
 	}
 
-	for k, v := range m {
-		bytes.Replace(c, []byte(k), []byte(v), -1)
+	for originalURL, localPath := range m {
+		c = bytes.Replace(c, []byte(fmt.Sprintf(`data-src="%s"`, originalURL)), []byte(fmt.Sprintf(`src="%s"`, localPath[9:])), -1)
+		c = bytes.Replace(c, []byte(originalURL), []byte(localPath[9:]), -1)
 	}
 	return c
 }

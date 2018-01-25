@@ -13,6 +13,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -100,23 +101,28 @@ func getArticleList() {
 		}
 		time.Sleep(time.Duration(rand.Intn(4000)+1000) * time.Millisecond)
 	}
-	b, e := json.Marshal(articles)
+
+	list, e := os.OpenFile(`articles/list.txt`, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if e != nil {
-		log.Fatalln("marshalling article list to json failed", e)
+		log.Fatalln("opening file articles/list.txt for writing failed ", e)
 		return
 	}
-	contentHTML, e := os.OpenFile(`articles/list.json`, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-	if e != nil {
-		log.Fatalln("opening file articles/list.json for writing failed ", e)
-		return
-	}
-
-	contentHTML.Write(b)
-	contentHTML.Close()
-
 	for _, a := range articles {
-		semaArticle.Acquire(ctxArticle, 1)
-		go downloadArticle(a.Title, a.URL)
+		list.WriteString(fmt.Sprintf("%s <==> %s\r\n", a.Title, a.URL))
+	}
+	list.Close()
+
+	l := 2
+	if len(articles) < 1000 {
+		l = 3
+	} else if len(articles) < 10000 {
+		l = 4
+	} else {
+		l = 5
+	}
+	for i, a := range articles {
+		fmt.Println("downloading", fmt.Sprintf("%."+strconv.Itoa(l)+"d_article %s", i+1, a.Title), a.URL)
+		downloadArticle(fmt.Sprintf("%."+strconv.Itoa(l)+"d_article", i+1), a.URL)
 	}
 
 	fmt.Println("全部采集完成！一共", len(articles), "篇文章。")
