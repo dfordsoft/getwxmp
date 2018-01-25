@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"time"
 )
 
@@ -143,5 +144,10 @@ func downloadImage(savePath string, u string) bool {
 
 func processArticle(c []byte) []byte {
 	bytes.Replace(c, []byte("data-src="), []byte("src="), -1)
+	re, _ := regexp.Compile(`<img[^>]+>`)
+	b := re.FindAllSubmatch(c, -1)
+	if len(b) > 0 {
+		//re2, _ := regexp.Compile(`src="([^"]+)"`)
+	}
 	return c
 }
