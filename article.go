@@ -132,7 +132,7 @@ doRequest:
 		return false
 	}
 
-	contentHTML.Write(processArticle(content))
+	contentHTML.Write(processArticle(title, content))
 	contentHTML.Close()
 
 	return true
@@ -142,12 +142,18 @@ func downloadImage(savePath string, u string) bool {
 	return true
 }
 
-func processArticle(c []byte) []byte {
+func processArticle(title string, c []byte) []byte {
 	bytes.Replace(c, []byte("data-src="), []byte("src="), -1)
 	re, _ := regexp.Compile(`<img[^>]+>`)
 	b := re.FindAllSubmatch(c, -1)
-	if len(b) > 0 {
-		//re2, _ := regexp.Compile(`src="([^"]+)"`)
+	for _, bb := range b {
+		re2, _ := regexp.Compile(`src="([^"]+)"`)
+		cc := re2.FindAllSubmatch(bb[0], -1)
+		for i, ccc := range cc {
+			dir := fmt.Sprintf("articles/%s_image", title)
+			os.Mkdir(dir, 0644)
+			downloadImage(fmt.Sprintf("%s/%d.jpg", dir, i), string(ccc[1]))
+		}
 	}
 	return c
 }
