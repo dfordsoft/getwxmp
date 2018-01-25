@@ -11,8 +11,11 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
 	"strings"
 	"time"
+
+	"github.com/elazarl/goproxy/ext/html"
 
 	"github.com/dfordsoft/golib/httputil"
 	"github.com/elazarl/goproxy"
@@ -181,6 +184,22 @@ func main() {
 		return strings.Contains(req.URL.String(), "action=getmsg")
 	}
 	proxy.OnRequest(r).DoFunc(onRequestWeixinMPArticleList)
+
+	var resp goproxy.RespConditionFunc = func(r *http.Response, ctx *goproxy.ProxyCtx) bool {
+		return strings.Contains(r.Request.URL.String(), "profile_ext?action=home")
+	}
+	proxy.OnResponse(resp).Do(goproxy_html.HandleString(func(s string, ctx *goproxy.ProxyCtx) string {
+		os.Mkdir("articles", 0644)
+		homeHTML, err := os.OpenFile(`articles/home.html`, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+		if err != nil {
+			log.Println("opening file home.html for writing failed ", err)
+			return s
+		}
+
+		homeHTML.WriteString(s)
+		homeHTML.Close()
+		return s
+	}))
 
 	proxy.Verbose = *verbose
 	log.Fatal(http.ListenAndServe(*addr, proxy))
