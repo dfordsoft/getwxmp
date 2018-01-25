@@ -89,6 +89,7 @@ var (
 )
 
 func downloadArticle(title string, u string) bool {
+	defer semaArticle.Release(1)
 doRequest:
 	pi := getProxyItem()
 	proxyString := fmt.Sprintf("%s://%s:%s", pi.Type, pi.Host, pi.Port)
@@ -126,6 +127,8 @@ doRequest:
 		removeProxyItem(pi)
 		return false
 	}
+	dir := fmt.Sprintf("articles/%s", title)
+	os.Mkdir(dir, 0644)
 	contentHTML, err := os.OpenFile(`articles/`+title+`.html`, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		log.Println("opening file home.html for writing failed ", err)
@@ -135,10 +138,58 @@ doRequest:
 	contentHTML.Write(processArticle(title, content))
 	contentHTML.Close()
 
+	fmt.Println(title, u, " is downloaded")
+
 	return true
 }
 
 func downloadImage(savePath string, u string) bool {
+doRequest:
+	pi := getProxyItem()
+	proxyString := fmt.Sprintf("%s://%s:%s", pi.Type, pi.Host, pi.Port)
+	proxyURL, _ := url.Parse(proxyString)
+
+	client := &http.Client{
+		Timeout:   15 * time.Second,
+		Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)},
+	}
+
+	req, err := http.NewRequest("GET", u, nil)
+	if err != nil {
+		log.Println("image - Could not parse image request:", err)
+		return false
+	}
+	req.Header.Set("User-Agent", userAgents[rand.Intn(len(userAgents))])
+
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Println("image - Could not send image request:", err)
+		time.Sleep(3 * time.Second)
+		goto doRequest
+	}
+
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		log.Println("image - image request not 200")
+		time.Sleep(3 * time.Second)
+		goto doRequest
+	}
+
+	content, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println(err)
+		removeProxyItem(pi)
+		return false
+	}
+	image, err := os.OpenFile(savePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		log.Println("opening file ", savePath, " for writing failed ", err)
+		return false
+	}
+
+	image.Write(content)
+	image.Close()
+
 	return true
 }
 
@@ -146,14 +197,19 @@ func processArticle(title string, c []byte) []byte {
 	bytes.Replace(c, []byte("data-src="), []byte("src="), -1)
 	re, _ := regexp.Compile(`<img[^>]+>`)
 	b := re.FindAllSubmatch(c, -1)
+	m := make(map[string]string)
 	for _, bb := range b {
 		re2, _ := regexp.Compile(`src="([^"]+)"`)
 		cc := re2.FindAllSubmatch(bb[0], -1)
 		for i, ccc := range cc {
-			dir := fmt.Sprintf("articles/%s_image", title)
-			os.Mkdir(dir, 0644)
-			downloadImage(fmt.Sprintf("%s/%d.jpg", dir, i), string(ccc[1]))
+			savePath := fmt.Sprintf("articles/%s/%d.jpg", title, i)
+			m[savePath] = string(ccc[1])
+			go downloadImage(savePath, string(ccc[1]))
 		}
+	}
+
+	for k, v := range m {
+		bytes.Replace(c, []byte(k), []byte(v), -1)
 	}
 	return c
 }

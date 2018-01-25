@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -15,10 +16,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/elazarl/goproxy/ext/html"
-
 	"github.com/dfordsoft/golib/httputil"
 	"github.com/elazarl/goproxy"
+	"github.com/elazarl/goproxy/ext/html"
+	"golang.org/x/sync/semaphore"
 )
 
 var (
@@ -26,6 +27,8 @@ var (
 	articleRequestHeader     http.Header
 	articleListRequestURL    string
 	articleListRequestHeader http.Header
+	ctxArticle               = context.TODO()
+	semaArticle              = semaphore.NewWeighted(10)
 )
 
 func setCA(caCert, caKey string) error {
@@ -60,7 +63,11 @@ func onRequestWeixinMPArticleList(req *http.Request, ctx *goproxy.ProxyCtx) (*ht
 
 func getArticleList() {
 	rand.Seed(time.Now().UnixNano())
-	count := 0
+	type article struct {
+		Title string
+		URL   string
+	}
+	var articles []article
 	for i := 0; ; i += 10 {
 		u := strings.Replace(articleListRequestURL, "offset=0", fmt.Sprintf("offset=%d", i), -1)
 		b, e := httputil.GetBytes(u, articleListRequestHeader, 30*time.Second, 3)
@@ -82,20 +89,37 @@ func getArticleList() {
 		}
 
 		for _, v := range list.List {
-			count++
-			fmt.Println(v.AppMsgExtInfo.Title, strings.Replace(v.AppMsgExtInfo.ContentURL, `&amp;`, `&`, -1))
+			articles = append(articles, article{Title: v.AppMsgExtInfo.Title, URL: strings.Replace(v.AppMsgExtInfo.ContentURL, `&amp;`, `&`, -1)})
 			for _, vv := range v.AppMsgExtInfo.MultiAppMsgItemList {
-				count++
-				fmt.Println(vv.Title, strings.Replace(vv.ContentURL, `&amp;`, `&`, -1))
+				articles = append(articles, article{Title: vv.Title, URL: strings.Replace(vv.ContentURL, `&amp;`, `&`, -1)})
 			}
 		}
 
 		if m.CanMsgContinue == 0 {
-			fmt.Println("全部采集完成！一共", count, "篇文章。")
 			break
 		}
 		time.Sleep(time.Duration(rand.Intn(4000)+1000) * time.Millisecond)
 	}
+	b, e := json.Marshal(articles)
+	if e != nil {
+		log.Fatalln("marshalling article list to json failed", e)
+		return
+	}
+	contentHTML, e := os.OpenFile(`articles/list.json`, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if e != nil {
+		log.Fatalln("opening file articles/list.json for writing failed ", e)
+		return
+	}
+
+	contentHTML.Write(b)
+	contentHTML.Close()
+
+	for _, a := range articles {
+		semaArticle.Acquire(ctxArticle, 1)
+		go downloadArticle(a.Title, a.URL)
+	}
+
+	fmt.Println("全部采集完成！一共", len(articles), "篇文章。")
 }
 
 type readFirstCloseBoth struct {

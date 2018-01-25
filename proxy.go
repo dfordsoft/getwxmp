@@ -18,8 +18,8 @@ import (
 
 var (
 	proxyList      = `https://raw.githubusercontent.com/fate0/proxylist/master/proxy.list`
-	sema           = semaphore.NewWeighted(5)
-	ctx            = context.TODO()
+	semaProxy      = semaphore.NewWeighted(5)
+	ctxProxy       = context.TODO()
 	wg             sync.WaitGroup
 	proxyPool      []proxyItem
 	proxyPoolMutex sync.RWMutex
@@ -69,7 +69,7 @@ func getProxyItem() proxyItem {
 
 func validateProxyItem(pi proxyItem) bool {
 	defer func() {
-		sema.Release(1)
+		semaProxy.Release(1)
 		wg.Done()
 	}()
 	proxyString := fmt.Sprintf("%s://%s:%s", pi.Type, pi.Host, pi.Port)
@@ -154,7 +154,7 @@ doRequest:
 		line := scanner.Text()
 		if err := json.Unmarshal([]byte(line), &pi); err == nil {
 			insertProxyItem(pi)
-			sema.Acquire(ctx, 1)
+			semaProxy.Acquire(ctxProxy, 1)
 			wg.Add(1)
 			go validateProxyItem(pi)
 		} else {
