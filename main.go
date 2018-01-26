@@ -15,6 +15,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dfordsoft/golib/httputil"
@@ -30,6 +31,7 @@ var (
 	articleListRequestHeader http.Header
 	ctxArticle               = context.TODO()
 	semaArticle              = semaphore.NewWeighted(10)
+	waitGroupArticle         sync.WaitGroup
 )
 
 func setCA(caCert, caKey string) error {
@@ -122,9 +124,11 @@ func getArticleList() {
 	}
 	for i, a := range articles {
 		fmt.Println("downloading", fmt.Sprintf("%."+strconv.Itoa(l)+"d_article %s", i+1, a.Title), a.URL)
-		downloadArticle(fmt.Sprintf("%."+strconv.Itoa(l)+"d_article", i+1), a.URL)
+		semaArticle.Acquire(ctxArticle, 1)
+		go downloadArticle(fmt.Sprintf("%."+strconv.Itoa(l)+"d_article", i+1), a.URL)
 	}
 
+	waitGroupArticle.Wait()
 	fmt.Println("全部采集完成！一共", len(articles), "篇文章。")
 }
 

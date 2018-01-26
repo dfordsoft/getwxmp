@@ -90,6 +90,11 @@ var (
 )
 
 func downloadArticle(title string, u string) bool {
+	waitGroupArticle.Add(1)
+	defer func() {
+		semaArticle.Release(1)
+		waitGroupArticle.Done()
+	}()
 doRequest:
 	pi := getProxyItem()
 	proxyString := fmt.Sprintf("%s://%s:%s", pi.Type, pi.Host, pi.Port)
@@ -142,6 +147,10 @@ doRequest:
 }
 
 func downloadImage(savePath string, u string) bool {
+	waitGroupArticle.Add(1)
+	defer func() {
+		waitGroupArticle.Done()
+	}()
 doRequest:
 	pi := getProxyItem()
 	proxyString := fmt.Sprintf("%s://%s:%s", pi.Type, pi.Host, pi.Port)
