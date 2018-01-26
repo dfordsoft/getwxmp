@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -143,19 +144,28 @@ doRequest:
 		return
 	}
 
-	scanner := bufio.NewScanner(resp.Body)
+	c, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Println("proxy list - proxy list read err", err)
+		retry++
+		if retry < 3 {
+			time.Sleep(3 * time.Second)
+			goto doRequest
+		}
+		return
+	}
+
+	scanner := bufio.NewScanner(bytes.NewReader(c))
 	scanner.Split(bufio.ScanLines)
 
 	var pi proxyItem
 	for scanner.Scan() {
 		line := scanner.Text()
-		if err := json.Unmarshal([]byte(line), &pi); err == nil {
+		if err = json.Unmarshal([]byte(line), &pi); err == nil {
 			insertProxyItem(pi)
 			semaProxy.Acquire(ctxProxy, 1)
 			wg.Add(1)
 			go validateProxyItem(pi)
-		} else {
-			fmt.Printf("%s, %v\n", line, err)
 		}
 	}
 	wg.Wait()

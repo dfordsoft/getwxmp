@@ -12,6 +12,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	uuid "github.com/satori/go.uuid"
 )
 
 var (
@@ -90,10 +92,10 @@ var (
 )
 
 func downloadArticle(title string, u string) bool {
-	waitGroupArticle.Add(1)
+	wgWXMP.Add(1)
 	defer func() {
 		semaArticle.Release(1)
-		waitGroupArticle.Done()
+		wgWXMP.Done()
 	}()
 doRequest:
 	pi := getProxyItem()
@@ -101,42 +103,47 @@ doRequest:
 	proxyURL, _ := url.Parse(proxyString)
 
 	client := &http.Client{
-		Timeout:   15 * time.Second,
+		Timeout:   30 * time.Second,
 		Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)},
 	}
 
 	req, err := http.NewRequest("GET", u, nil)
 	if err != nil {
-		log.Println("article - Could not parse article request:", err)
+		//log.Println("article - Could not parse article request:", err)
 		return false
 	}
 	req.Header.Set("User-Agent", userAgents[rand.Intn(len(userAgents))])
 
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Println("article - Could not send article request:", err)
+		//log.Println("article - Could not send article request:", err)
 		time.Sleep(3 * time.Second)
 		goto doRequest
 	}
 
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		log.Println("article - article request not 200")
+		//log.Println("article - article request not 200")
 		time.Sleep(3 * time.Second)
 		goto doRequest
 	}
 
 	content, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println(err)
-		removeProxyItem(pi)
+		//log.Println("article - ", err)
 		return false
 	}
-	dir := fmt.Sprintf("articles/%s", title)
+
+	invalid := `<p class="title">接相关投诉，此内容违反《即时通信工具公众信息服务发展管理暂行规定》，查看<a href="http://www.cac.gov.cn/2014-08/07/c_1111983456.htm">详细内容</a></p>`
+	if bytes.Contains(content, []byte(invalid)) {
+		return true
+	}
+
+	dir := fmt.Sprintf("%s/%s", wxmpTitle, title)
 	os.Mkdir(dir, 0644)
-	contentHTML, err := os.OpenFile(`articles/`+title+`.html`, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	contentHTML, err := os.OpenFile(wxmpTitle+`/`+title+`.html`, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
-		log.Println("opening file home.html for writing failed ", err)
+		log.Println("opening file "+wxmpTitle+`/`+title+`.html`+" for writing failed ", err)
 		return false
 	}
 
@@ -147,9 +154,10 @@ doRequest:
 }
 
 func downloadImage(savePath string, u string) bool {
-	waitGroupArticle.Add(1)
+	wgWXMP.Add(1)
 	defer func() {
-		waitGroupArticle.Done()
+		semaImage.Release(1)
+		wgWXMP.Done()
 	}()
 doRequest:
 	pi := getProxyItem()
@@ -157,35 +165,34 @@ doRequest:
 	proxyURL, _ := url.Parse(proxyString)
 
 	client := &http.Client{
-		Timeout:   15 * time.Second,
+		Timeout:   30 * time.Second,
 		Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)},
 	}
 
 	req, err := http.NewRequest("GET", u, nil)
 	if err != nil {
-		log.Println("image - Could not parse image request:", err)
+		//log.Println("image - Could not parse image request:", err)
 		return false
 	}
 	req.Header.Set("User-Agent", userAgents[rand.Intn(len(userAgents))])
 
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Println("image - Could not send image request:", err)
+		//log.Println("image - Could not send image request:", err)
 		time.Sleep(3 * time.Second)
 		goto doRequest
 	}
 
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		log.Println("image - image request not 200")
+		//log.Println("image - image request not 200")
 		time.Sleep(3 * time.Second)
 		goto doRequest
 	}
 
 	content, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println(err)
-		removeProxyItem(pi)
+		//log.Println("image - ", err)
 		return false
 	}
 	image, err := os.OpenFile(savePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
@@ -207,7 +214,7 @@ func processArticle(title string, c []byte) []byte {
 	for _, bb := range b {
 		re2, _ := regexp.Compile(`data\-src="([^"]+)"`)
 		cc := re2.FindAllSubmatch(bb[0], -1)
-		for i, ccc := range cc {
+		for _, ccc := range cc {
 			originalURL := string(ccc[1])
 			begin := strings.Index(originalURL, "wx_fmt=")
 			ext := ""
@@ -218,9 +225,9 @@ func processArticle(title string, c []byte) []byte {
 			if end > 0 {
 				ext = ext[:end]
 			}
-			fmt.Println(ext)
-			savePath := fmt.Sprintf("articles/%s/%d.%s", title, i, ext)
+			savePath := fmt.Sprintf("%s/%s/%s.%s", wxmpTitle, title, uuid.Must(uuid.NewV4()).String(), ext)
 			m[originalURL] = savePath
+			semaImage.Acquire(ctxArticle, 1)
 			go downloadImage(savePath, originalURL)
 		}
 
@@ -233,17 +240,18 @@ func processArticle(title string, c []byte) []byte {
 			if lastSlash > 0 {
 				fileName = fileName[lastSlash+1:]
 			}
-			savePath := fmt.Sprintf("articles/%s/%s", title, fileName)
+			savePath := fmt.Sprintf("%s/%s/%s", wxmpTitle, title, fileName)
 			m[originalURL] = savePath
 			if strings.HasPrefix(originalURL, "//") {
 				originalURL = "https:" + originalURL
 			}
+			semaImage.Acquire(ctxArticle, 1)
 			go downloadImage(savePath, originalURL)
 		}
 	}
 
 	for originalURL, localPath := range m {
-		c = bytes.Replace(c, []byte(fmt.Sprintf(`data-src="%s"`, originalURL)), []byte(fmt.Sprintf(`src="%s"`, localPath[9:])), -1)
+		c = bytes.Replace(c, []byte(fmt.Sprintf(`data-src="%s"`, originalURL)), []byte(fmt.Sprintf(`src="%s"`, localPath[len(wxmpTitle)+1:])), -1)
 		c = bytes.Replace(c, []byte(originalURL), []byte(localPath[9:]), -1)
 	}
 	return c
