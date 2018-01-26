@@ -123,8 +123,8 @@ func getArticleList() {
 		l = 5
 	}
 	for i, a := range articles {
-		fmt.Println("downloading", fmt.Sprintf("%."+strconv.Itoa(l)+"d_article %s", i+1, a.Title), a.URL)
 		semaArticle.Acquire(ctxArticle, 1)
+		fmt.Println("downloading", fmt.Sprintf("%."+strconv.Itoa(l)+"d_article %s", i+1, a.Title), a.URL)
 		go downloadArticle(fmt.Sprintf("%."+strconv.Itoa(l)+"d_article", i+1), a.URL)
 	}
 
