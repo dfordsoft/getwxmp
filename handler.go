@@ -7,16 +7,12 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
-	"os"
-	"os/exec"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/dfordsoft/golib/fsutil"
 	"github.com/dfordsoft/golib/httputil"
-	"github.com/dfordsoft/golib/semaphore"
 	"github.com/elazarl/goproxy"
 )
 
@@ -25,11 +21,17 @@ var (
 	articleRequestHeader     http.Header
 	articleListRequestURL    string
 	articleListRequestHeader http.Header
-	semaArticle              = semaphore.New(15)
 	wgWXMP                   sync.WaitGroup
-	semaImage                = semaphore.New(150)
 )
 
+const (
+	titleSuffix = `_article`
+)
+
+type article struct {
+	Title string
+	URL   string
+}
 type getMsgResponse struct {
 	Ret            int    `json:"ret"`
 	ErrMsg         string `json:"errmsg"`
@@ -93,10 +95,6 @@ func onRequestWeixinMPArticleList(req *http.Request, ctx *goproxy.ProxyCtx) (*ht
 
 func getArticleList() {
 	rand.Seed(time.Now().UnixNano())
-	type article struct {
-		Title string
-		URL   string
-	}
 	var articles []article
 
 	duplicateArticle := func(a article) bool {
@@ -134,6 +132,8 @@ func getArticleList() {
 				a := article{Title: v.AppMsgExtInfo.Title, URL: strings.Replace(v.AppMsgExtInfo.ContentURL, `&amp;`, `&`, -1)}
 				if !duplicateArticle(a) {
 					articles = append(articles, a)
+					title := fmt.Sprintf("%d%s", len(articles), titleSuffix)
+					go processArticle(title, a)
 				}
 			}
 			for _, vv := range v.AppMsgExtInfo.MultiAppMsgItemList {
@@ -142,89 +142,36 @@ func getArticleList() {
 					a := article{Title: vv.Title, URL: strings.Replace(vv.ContentURL, `&amp;`, `&`, -1)}
 					if !duplicateArticle(a) {
 						articles = append(articles, a)
+						title := fmt.Sprintf("%d%s", len(articles), titleSuffix)
+						go processArticle(title, a)
 					}
 				}
 			}
 		}
 
-		fmt.Printf("\r已经找到 %d 篇文章...", len(articles))
 		if m.CanMsgContinue == 0 {
 			break
 		}
 		time.Sleep(time.Duration(rand.Intn(4000)+1000) * time.Millisecond)
 	}
 
-	fmt.Printf("\r一共找到 %d 篇文章，开始下载...\n", len(articles))
-
-	list, e := os.OpenFile(wxmpTitle+`/list.txt`, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-	if e != nil {
-		log.Fatalln("opening file "+wxmpTitle+"/list.txt for writing failed ", e)
-		return
-	}
-	for _, a := range articles {
-		list.WriteString(fmt.Sprintf("%s <==> %s\r\n", a.Title, a.URL))
-	}
-	list.Close()
-
-	l := 1
-	if len(articles) < 100 {
-		l = 2
-	} else if len(articles) < 1000 {
-		l = 3
-	} else if len(articles) < 10000 {
-		l = 4
-	} else {
-		l = 5
-	}
-	for i, a := range articles {
-		semaArticle.Acquire()
-		fmt.Println("正在下载", fmt.Sprintf("%."+strconv.Itoa(l)+"d_article %s", i+1, a.Title), a.URL)
-		go downloadArticle(fmt.Sprintf("%."+strconv.Itoa(l)+"d_article", i+1), a.URL)
-	}
-
+	// wait for all articles and images downloaded, and convert them to PDFs
 	wgWXMP.Wait()
-	fmt.Println("全部采集完成！一共", len(articles), "篇文章。")
+	fmt.Printf("总共下载%d篇文章，并已转换为PDF格式，准备合并为 %s.pdf\n", len(articles), wxmpTitle)
 
+	// merge those PDFs into a single big PDF document
 	var inputPaths []string
-	for i := range articles {
-		semaArticle.Acquire()
-		inputFilePath := fmt.Sprintf("%s/%."+strconv.Itoa(l)+"d_article.html", wxmpTitle, i+1)
+	for i := 0; i < len(articles); i++ {
+		inputFilePath := fmt.Sprintf("%s/%d%s.pdf", wxmpTitle, i+1, titleSuffix)
 		if b, _ := fsutil.FileExists(inputFilePath); b {
-			outputFilePath := fmt.Sprintf("%s/%."+strconv.Itoa(l)+"d_article.pdf", wxmpTitle, i+1)
-			inputPaths = append(inputPaths, outputFilePath)
-			fmt.Println("转换", inputFilePath, "为", outputFilePath)
-			go phantomjs(inputFilePath, outputFilePath)
-		} else {
-			semaArticle.Release()
+			inputPaths = append(inputPaths, inputFilePath)
 		}
 	}
 
-	wgWXMP.Wait()
-	fmt.Println("全部转换为PDF！一共", len(inputPaths), "篇文章。")
-
+	fmt.Println(inputPaths)
 	if err := mergePDF(inputPaths, wxmpTitle+".pdf"); err != nil {
 		log.Println("merging PDF documents failed", err)
 		return
 	}
-	fmt.Println("全部PDF合并为" + wxmpTitle + ".pdf")
-}
-
-func wkhtmltopdf(inputFilePath string, outputFilePath string) {
-	wgWXMP.Add(1)
-	defer func() {
-		semaArticle.Release()
-		wgWXMP.Done()
-	}()
-	cmd := exec.Command("wkhtmltopdf", inputFilePath, outputFilePath)
-	cmd.Run()
-}
-
-func phantomjs(inputFilePath string, outputFilePath string) {
-	wgWXMP.Add(1)
-	defer func() {
-		semaArticle.Release()
-		wgWXMP.Done()
-	}()
-	cmd := exec.Command("phantomjs", "rasterize.js", inputFilePath, outputFilePath, "A4")
-	cmd.Run()
+	fmt.Println("全部PDF已合并为" + wxmpTitle + ".pdf")
 }

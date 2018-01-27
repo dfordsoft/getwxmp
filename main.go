@@ -76,11 +76,11 @@ func main() {
 		end := strings.Index(wxmpTitle, endStr)
 		wxmpTitle = wxmpTitle[:end]
 		t := strings.TrimSpace(wxmpTitle)
+		originalTitle := t
 		wxmpTitle = ""
 		isCJK := false
 		for len(t) > 0 {
 			r, size := utf8.DecodeRuneInString(t)
-			fmt.Printf("%c %v %v\n", r, size, []byte(string(r)))
 			if size == 1 {
 				if isCJK == true {
 					isCJK = false
@@ -98,6 +98,7 @@ func main() {
 			}
 			t = t[size:]
 		}
+		fmt.Println("检测到微信公众号", originalTitle, "首页，往下滚动开始抓取所有文章到", wxmpTitle)
 
 		os.Mkdir(wxmpTitle, 0755)
 		return s

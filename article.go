@@ -9,12 +9,14 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/dfordsoft/golib/semaphore"
 	uuid "github.com/satori/go.uuid"
 )
 
@@ -94,20 +96,44 @@ var (
 	clientPool = sync.Pool{
 		New: func() interface{} {
 			return &http.Client{
-				Timeout:   30 * time.Second,
-				Transport: &http.Transport{DisableKeepAlives: true},
+				Timeout: 90 * time.Second,
+				Transport: &http.Transport{
+					DisableKeepAlives: true,
+					IdleConnTimeout:   30 * time.Second,
+				},
 			}
 		},
 	}
+	semaImage   = semaphore.New(150)
+	semaArticle = semaphore.New(15)
+	semaPDF     = semaphore.New(15)
 )
 
-func downloadArticle(title string, u string) bool {
-	wgWXMP.Add(1)
+func processArticle(saveTo string, a article) {
+	wgWXMP.Add(2) // 1 for downloading, 1 for converting
+	semaArticle.Acquire()
+	defer func() {
+		semaArticle.Release()
+		wgWXMP.Done()
+	}()
+	// download article and images
+	downloadArticle(saveTo, a)
+	// convert to PDF
+	go func() {
+		semaPDF.Acquire()
+		inputFilePath := fmt.Sprintf("%s/%s.html", wxmpTitle, saveTo)
+		outputFilePath := fmt.Sprintf("%s/%s.pdf", wxmpTitle, saveTo)
+		convertToPDF(inputFilePath, outputFilePath)
+		semaPDF.Release()
+		wgWXMP.Done()
+	}()
+}
+
+func downloadArticle(saveTo string, a article) bool {
+	fmt.Println("正在下载", a.Title, a.URL, "到", saveTo)
 	client := clientPool.Get().(*http.Client)
 	defer func() {
 		clientPool.Put(client)
-		semaArticle.Release()
-		wgWXMP.Done()
 	}()
 doRequest:
 	pi := getProxyItem()
@@ -116,7 +142,7 @@ doRequest:
 
 	client.Transport.(*http.Transport).Proxy = http.ProxyURL(proxyURL)
 
-	req, err := http.NewRequest("GET", u, nil)
+	req, err := http.NewRequest("GET", a.URL, nil)
 	if err != nil {
 		//log.Println("article - Could not parse article request:", err)
 		return false
@@ -149,27 +175,26 @@ doRequest:
 		return true
 	}
 
-	dir := fmt.Sprintf("%s/%s", wxmpTitle, title)
+	dir := fmt.Sprintf("%s/%s", wxmpTitle, saveTo)
 	os.Mkdir(dir, 0755)
-	contentHTML, err := os.OpenFile(wxmpTitle+`/`+title+`.html`, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	contentHTML, err := os.OpenFile(wxmpTitle+`/`+saveTo+`.html`, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
-		log.Println("opening file "+wxmpTitle+`/`+title+`.html`+" for writing failed ", err)
+		log.Println("opening file "+wxmpTitle+`/`+saveTo+`.html`+" for writing failed ", err)
 		return false
 	}
 
-	contentHTML.Write(processArticle(title, content))
+	contentHTML.Write(processArticleContent(saveTo, content))
 	contentHTML.Close()
 
 	return true
 }
 
-func downloadImage(savePath string, u string) bool {
-	wgWXMP.Add(1)
+func downloadImage(savePath string, u string, wg *sync.WaitGroup) bool {
 	client := clientPool.Get().(*http.Client)
 	defer func() {
 		clientPool.Put(client)
 		semaImage.Release()
-		wgWXMP.Done()
+		wg.Done()
 	}()
 doRequest:
 	pi := getProxyItem()
@@ -266,32 +291,41 @@ func parseSrc(b []byte) (originalURL string, ext string) {
 	return
 }
 
-func processArticle(title string, c []byte) []byte {
+func processArticleContent(saveTo string, c []byte) []byte {
+	var wg sync.WaitGroup
 	re, _ := regexp.Compile(`<img[^>]+>`)
 	b := re.FindAllSubmatch(c, -1)
 	m := make(map[string]string)
 	for _, bb := range b {
 		if originalURL, ext := parseDataSrc(bb[0]); originalURL != "" && ext != "" {
-			savePath := fmt.Sprintf("%s/%s/%s.%s", wxmpTitle, title, uuid.Must(uuid.NewV4()).String(), ext)
+			savePath := fmt.Sprintf("%s/%s/%s.%s", wxmpTitle, saveTo, uuid.Must(uuid.NewV4()).String(), ext)
 			m[originalURL] = savePath
+			wg.Add(1)
 			semaImage.Acquire()
-			go downloadImage(savePath, originalURL)
+			go downloadImage(savePath, originalURL, &wg)
 		}
 
 		if originalURL, ext := parseSrc(bb[0]); originalURL != "" && ext != "" {
-			savePath := fmt.Sprintf("%s/%s/%s.%s", wxmpTitle, title, uuid.Must(uuid.NewV4()).String(), ext)
+			savePath := fmt.Sprintf("%s/%s/%s.%s", wxmpTitle, saveTo, uuid.Must(uuid.NewV4()).String(), ext)
 			m[originalURL] = savePath
 			if strings.HasPrefix(originalURL, "//") {
 				originalURL = "https:" + originalURL
 			}
+			wg.Add(1)
 			semaImage.Acquire()
-			go downloadImage(savePath, originalURL)
+			go downloadImage(savePath, originalURL, &wg)
 		}
 	}
-
+	wg.Wait()
 	for originalURL, localPath := range m {
 		c = bytes.Replace(c, []byte(fmt.Sprintf(`data-src="%s"`, originalURL)), []byte(fmt.Sprintf(`src="%s"`, localPath[len(wxmpTitle)+1:])), -1)
 		c = bytes.Replace(c, []byte(originalURL), []byte(localPath[9:]), -1)
 	}
 	return c
+}
+
+func convertToPDF(inputFilePath string, outputFilePath string) {
+	fmt.Println("正在转换", inputFilePath, "为", outputFilePath)
+	cmd := exec.Command("phantomjs", "rasterize.js", inputFilePath, outputFilePath, "A4")
+	cmd.Run()
 }
