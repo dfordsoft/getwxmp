@@ -35,7 +35,7 @@ type proxyItem struct {
 func loadProxyItems() bool {
 	proxyJSON, err := os.OpenFile("proxy.json", os.O_RDONLY, 0644)
 	if err != nil {
-		log.Fatalln("opening file proxy.json for reading failed ", err)
+		log.Println("opening file proxy.json for reading failed ", err)
 		return false
 	}
 
@@ -150,7 +150,7 @@ func validateProxyItem(pi proxyItem) bool {
 
 func updateProxy() {
 	client := clientPool.Get().(*http.Client)
-	client.Transport = http.DefaultTransport
+	client.Transport = &http.Transport{Proxy: nil}
 	defer clientPool.Put(client)
 
 	retry := 0
@@ -209,4 +209,16 @@ doRequest:
 	}
 	wg.Wait()
 	saveProxyItems()
+}
+
+func updateProxyPierodically() {
+	loadProxyItems()
+	updateProxy()
+	ticker := time.NewTicker(15 * time.Minute)
+	for {
+		select {
+		case <-ticker.C:
+			updateProxy()
+		}
+	}
 }

@@ -93,7 +93,8 @@ var (
 	clientPool = sync.Pool{
 		New: func() interface{} {
 			return &http.Client{
-				Timeout: 30 * time.Second,
+				Timeout:   30 * time.Second,
+				Transport: &http.Transport{DisableKeepAlives: true},
 			}
 		},
 	}

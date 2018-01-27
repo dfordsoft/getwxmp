@@ -130,6 +130,8 @@ func getArticleList() {
 		time.Sleep(time.Duration(rand.Intn(4000)+1000) * time.Millisecond)
 	}
 
+	fmt.Println("一共找到", len(articles), "篇文章，开始下载...")
+
 	list, e := os.OpenFile(wxmpTitle+`/list.txt`, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if e != nil {
 		log.Fatalln("opening file "+wxmpTitle+"/list.txt for writing failed ", e)
@@ -152,7 +154,7 @@ func getArticleList() {
 	}
 	for i, a := range articles {
 		semaArticle.Acquire()
-		fmt.Println("downloading", fmt.Sprintf("%."+strconv.Itoa(l)+"d_article %s", i+1, a.Title), a.URL)
+		fmt.Println("正在下载", fmt.Sprintf("%."+strconv.Itoa(l)+"d_article %s", i+1, a.Title), a.URL)
 		go downloadArticle(fmt.Sprintf("%."+strconv.Itoa(l)+"d_article", i+1), a.URL)
 	}
 
@@ -166,7 +168,7 @@ func getArticleList() {
 		if b, _ := fsutil.FileExists(inputFilePath); b {
 			outputFilePath := fmt.Sprintf("%s/%."+strconv.Itoa(l)+"d_article.pdf", wxmpTitle, i+1)
 			inputPaths = append(inputPaths, outputFilePath)
-			fmt.Println("converting", inputFilePath, "to", outputFilePath)
+			fmt.Println("转换", inputFilePath, "为", outputFilePath)
 			go phantomjs(inputFilePath, outputFilePath)
 		} else {
 			semaArticle.Release()

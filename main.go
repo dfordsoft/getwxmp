@@ -46,7 +46,7 @@ func main() {
 		updateProxy()
 		return
 	}
-	loadProxyItems()
+	go updateProxyPierodically()
 
 	if err := setCA(*caCert, *caKey); err != nil {
 		log.Fatalln(err)
