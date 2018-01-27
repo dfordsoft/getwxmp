@@ -61,7 +61,10 @@ func main() {
 	proxy.OnRequest(r).DoFunc(onRequestWeixinMPArticleList)
 
 	var resp goproxy.RespConditionFunc = func(r *http.Response, ctx *goproxy.ProxyCtx) bool {
-		return strings.Contains(r.Request.URL.String(), "profile_ext?action=home")
+		if r != nil && r.Request != nil && r.Request.URL != nil {
+			return strings.Contains(r.Request.URL.String(), "profile_ext?action=home")
+		}
+		return false
 	}
 	proxy.OnResponse(resp).Do(goproxy_html.HandleString(func(s string, ctx *goproxy.ProxyCtx) string {
 		beginStr := `<strong class="profile_nickname" id="nickname">`
