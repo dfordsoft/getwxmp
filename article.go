@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -217,40 +218,68 @@ doRequest:
 	return true
 }
 
+func parseDataSrc(b []byte) (originalURL string, ext string) {
+	re, _ := regexp.Compile(`data\-src="([^"]+)"`)
+	cc := re.FindAllSubmatch(b, -1)
+	for _, c := range cc {
+		originalURL = string(c[1])
+		begin := strings.Index(originalURL, "wx_fmt=")
+		if begin > 0 {
+			ext = originalURL[begin+7:]
+		}
+		end := strings.Index(ext, "\"")
+		if end > 0 {
+			ext = ext[:end]
+		}
+		if ext != "" {
+			return
+		}
+	}
+
+	re2, _ := regexp.Compile(`data\-type="([^"]+)"`)
+	cc = re2.FindAllSubmatch(b, -1)
+	for _, c := range cc {
+		ext = string(c[1])
+		return
+	}
+
+	return
+}
+
+func parseSrc(b []byte) (originalURL string, ext string) {
+	re2, _ := regexp.Compile(` src="([^"]+)"`)
+	cc := re2.FindAllSubmatch(b, -1)
+	for _, c := range cc {
+		originalURL = string(c[1])
+		fileName := originalURL
+		lastSlash := strings.LastIndex(fileName, "/")
+		if lastSlash > 0 {
+			fileName = fileName[lastSlash+1:]
+		}
+		ext = filepath.Ext(fileName)
+		if ext != "" {
+			ext = ext[1:]
+		}
+		return
+	}
+
+	return
+}
+
 func processArticle(title string, c []byte) []byte {
 	re, _ := regexp.Compile(`<img[^>]+>`)
 	b := re.FindAllSubmatch(c, -1)
 	m := make(map[string]string)
 	for _, bb := range b {
-		re2, _ := regexp.Compile(`data\-src="([^"]+)"`)
-		cc := re2.FindAllSubmatch(bb[0], -1)
-		for _, ccc := range cc {
-			originalURL := string(ccc[1])
-			begin := strings.Index(originalURL, "wx_fmt=")
-			ext := ""
-			if begin > 0 {
-				ext = originalURL[begin+7:]
-			}
-			end := strings.Index(ext, "\"")
-			if end > 0 {
-				ext = ext[:end]
-			}
+		if originalURL, ext := parseDataSrc(bb[0]); originalURL != "" && ext != "" {
 			savePath := fmt.Sprintf("%s/%s/%s.%s", wxmpTitle, title, uuid.Must(uuid.NewV4()).String(), ext)
 			m[originalURL] = savePath
 			semaImage.Acquire()
 			go downloadImage(savePath, originalURL)
 		}
 
-		re2, _ = regexp.Compile(` src="([^"]+)"`)
-		cc = re2.FindAllSubmatch(bb[0], -1)
-		for _, ccc := range cc {
-			originalURL := string(ccc[1])
-			fileName := originalURL
-			lastSlash := strings.LastIndex(fileName, "/")
-			if lastSlash > 0 {
-				fileName = fileName[lastSlash+1:]
-			}
-			savePath := fmt.Sprintf("%s/%s/%s", wxmpTitle, title, fileName)
+		if originalURL, ext := parseSrc(bb[0]); originalURL != "" && ext != "" {
+			savePath := fmt.Sprintf("%s/%s/%s.%s", wxmpTitle, title, uuid.Must(uuid.NewV4()).String(), ext)
 			m[originalURL] = savePath
 			if strings.HasPrefix(originalURL, "//") {
 				originalURL = "https:" + originalURL
