@@ -154,7 +154,7 @@ func getArticleList() {
 		time.Sleep(time.Duration(rand.Intn(4000)+1000) * time.Millisecond)
 	}
 
-	fmt.Println("一共找到", len(articles), "篇文章，开始下载...")
+	fmt.Printf("\r一共找到 %d 篇文章，开始下载...\n", len(articles))
 
 	list, e := os.OpenFile(wxmpTitle+`/list.txt`, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if e != nil {
