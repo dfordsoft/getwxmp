@@ -19,7 +19,7 @@ import (
 
 var (
 	proxyList      = `https://raw.githubusercontent.com/fate0/proxylist/master/proxy.list`
-	semaProxy      = semaphore.New(5)
+	semaProxy      = semaphore.New(10)
 	wg             sync.WaitGroup
 	proxyPool      []proxyItem
 	proxyPoolMutex sync.RWMutex
@@ -35,11 +35,12 @@ type proxyItem struct {
 func loadProxyItems() bool {
 	proxyJSON, err := os.OpenFile("proxy.json", os.O_RDONLY, 0644)
 	if err != nil {
-		log.Println("opening file proxy.json for reading failed ", err)
+		log.Fatalln("opening file proxy.json for reading failed ", err)
 		return false
 	}
-	defer proxyJSON.Close()
+
 	b, e := ioutil.ReadAll(proxyJSON)
+	proxyJSON.Close()
 	if e != nil {
 		log.Println("reading proxy.json failed", err)
 		return false
@@ -119,7 +120,6 @@ func validateProxyItem(pi proxyItem) bool {
 	req, err := http.NewRequest("GET", "http://ip.cn", nil)
 	if err != nil {
 		//fmt.Println(err)
-		removeProxyItem(pi)
 		return false
 	}
 
@@ -132,13 +132,12 @@ func validateProxyItem(pi proxyItem) bool {
 	}
 
 	content, err := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
 	if err != nil {
-		resp.Body.Close()
 		//fmt.Println(err)
 		removeProxyItem(pi)
 		return false
 	}
-	resp.Body.Close()
 
 	if len(content) > 200 {
 		//fmt.Println("too long response is treated as unexpected response")
@@ -184,8 +183,8 @@ doRequest:
 	}
 
 	c, err := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
 	if err != nil {
-		resp.Body.Close()
 		log.Println("proxy list - proxy list read err", err)
 		retry++
 		if retry < 3 {
@@ -194,7 +193,6 @@ doRequest:
 		}
 		return
 	}
-	resp.Body.Close()
 
 	scanner := bufio.NewScanner(bytes.NewReader(c))
 	scanner.Split(bufio.ScanLines)
@@ -211,16 +209,4 @@ doRequest:
 	}
 	wg.Wait()
 	saveProxyItems()
-}
-
-func updateProxyPierodically() {
-	loadProxyItems()
-	updateProxy()
-	ticker := time.NewTicker(15 * time.Minute)
-	for {
-		select {
-		case <-ticker.C:
-			updateProxy()
-		}
-	}
 }

@@ -36,12 +36,17 @@ func setCA(caCert, caKey string) error {
 
 func main() {
 	verbose := flag.Bool("v", false, "should every proxy request be logged to stdout")
+	updateProxyOnly := flag.Bool("proxy", false, "update proxy list only")
 	addr := flag.String("addr", ":8080", "proxy listen address")
 	caCert := flag.String("cert", "cert/ca.cer", "set ca certificate file path")
 	caKey := flag.String("key", "cert/ca.key", "set ca private key file path")
 	flag.Parse()
 
-	go updateProxyPierodically()
+	if *updateProxyOnly {
+		updateProxy()
+		return
+	}
+	loadProxyItems()
 
 	if err := setCA(*caCert, *caKey); err != nil {
 		log.Fatalln(err)
