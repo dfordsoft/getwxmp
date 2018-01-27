@@ -4,11 +4,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/elazarl/goproxy"
 	"github.com/elazarl/goproxy/ext/html"
@@ -73,8 +75,30 @@ func main() {
 		endStr := `</strong>`
 		end := strings.Index(wxmpTitle, endStr)
 		wxmpTitle = wxmpTitle[:end]
-		py := pinyin.LazyPinyin(strings.TrimSpace(wxmpTitle), pinyin.NewArgs())
-		wxmpTitle = strings.Join(py, "-")
+		t := strings.TrimSpace(wxmpTitle)
+		wxmpTitle = ""
+		isCJK := false
+		for len(t) > 0 {
+			r, size := utf8.DecodeRuneInString(t)
+			fmt.Printf("%c %v %v\n", r, size, []byte(string(r)))
+			if size == 1 {
+				if isCJK == true {
+					isCJK = false
+					wxmpTitle += "-"
+				}
+				wxmpTitle += string(r)
+			} else {
+				isCJK = true
+				py := pinyin.LazyPinyin(string(r), pinyin.NewArgs())
+				if wxmpTitle == "" {
+					wxmpTitle = py[0]
+				} else {
+					wxmpTitle += "-" + py[0]
+				}
+			}
+			t = t[size:]
+		}
+
 		os.Mkdir(wxmpTitle, 0755)
 		return s
 	}))
