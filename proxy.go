@@ -115,7 +115,7 @@ func validateProxyItem(pi proxyItem) bool {
 	proxyString := fmt.Sprintf("%s://%s:%s", pi.Type, pi.Host, pi.Port)
 	proxyURL, _ := url.Parse(proxyString)
 
-	client.Transport = &http.Transport{Proxy: http.ProxyURL(proxyURL)}
+	client.Transport.(*http.Transport).Proxy = http.ProxyURL(proxyURL)
 
 	req, err := http.NewRequest("GET", "http://ip.cn", nil)
 	if err != nil {
@@ -150,7 +150,7 @@ func validateProxyItem(pi proxyItem) bool {
 
 func updateProxy() {
 	client := clientPool.Get().(*http.Client)
-	client.Transport = &http.Transport{Proxy: nil}
+	client.Transport.(*http.Transport).Proxy = nil
 	defer clientPool.Put(client)
 
 	retry := 0

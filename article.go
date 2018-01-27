@@ -113,7 +113,7 @@ doRequest:
 	proxyString := fmt.Sprintf("%s://%s:%s", pi.Type, pi.Host, pi.Port)
 	proxyURL, _ := url.Parse(proxyString)
 
-	client.Transport = &http.Transport{Proxy: http.ProxyURL(proxyURL)}
+	client.Transport.(*http.Transport).Proxy = http.ProxyURL(proxyURL)
 
 	req, err := http.NewRequest("GET", u, nil)
 	if err != nil {
@@ -175,7 +175,7 @@ doRequest:
 	proxyString := fmt.Sprintf("%s://%s:%s", pi.Type, pi.Host, pi.Port)
 	proxyURL, _ := url.Parse(proxyString)
 
-	client.Transport = &http.Transport{Proxy: http.ProxyURL(proxyURL)}
+	client.Transport.(*http.Transport).Proxy = http.ProxyURL(proxyURL)
 
 	req, err := http.NewRequest("GET", u, nil)
 	if err != nil {
