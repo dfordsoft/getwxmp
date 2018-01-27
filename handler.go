@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"math/rand"
@@ -15,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dfordsoft/golib/fsutil"
 	"github.com/dfordsoft/golib/httputil"
 	"github.com/elazarl/goproxy"
 	"golang.org/x/sync/semaphore"
@@ -166,11 +166,11 @@ func getArticleList() {
 	for i := range articles {
 		semaArticle.Acquire(ctxArticle, 1)
 		inputFilePath := fmt.Sprintf("%s/%."+strconv.Itoa(l)+"d_article.html", wxmpTitle, i+1)
-		if b, _ := isFileExists(inputFilePath); b {
+		if b, _ := fsutil.FileExists(inputFilePath); b {
 			outputFilePath := fmt.Sprintf("%s/%."+strconv.Itoa(l)+"d_article.pdf", wxmpTitle, i+1)
 			inputPaths = append(inputPaths, outputFilePath)
 			fmt.Println("converting", inputFilePath, "to", outputFilePath)
-			go convertToPDF(inputFilePath, outputFilePath)
+			go phantomjs(inputFilePath, outputFilePath)
 		} else {
 			semaArticle.Release(1)
 		}
@@ -179,33 +179,28 @@ func getArticleList() {
 	wgWXMP.Wait()
 	fmt.Println("全部转换为PDF！一共", len(inputPaths), "篇文章。")
 
-	if err := mergePdf(inputPaths, wxmpTitle+".pdf"); err != nil {
+	if err := mergePDF(inputPaths, wxmpTitle+".pdf"); err != nil {
 		log.Fatalln(err)
 	}
 	fmt.Println("全部PDF合并为" + wxmpTitle + ".pdf")
 }
 
-func isFileExists(path string) (bool, error) {
-	stat, err := os.Stat(path)
-	if err == nil {
-		if stat.Mode()&os.ModeType == 0 {
-			return true, nil
-		}
-		return false, errors.New(path + " exists but is not regular file")
-	}
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	return false, err
-}
-
-func convertToPDF(inputFilePath string, outputFilePath string) {
+func wkHTMLToPDF(inputFilePath string, outputFilePath string) {
 	wgWXMP.Add(1)
 	defer func() {
 		semaArticle.Release(1)
 		wgWXMP.Done()
 	}()
-	//cmd := exec.Command("wkhtmltopdf", inputFilePath, outputFilePath)
+	cmd := exec.Command("wkhtmltopdf", inputFilePath, outputFilePath)
+	cmd.Run()
+}
+
+func phantomjs(inputFilePath string, outputFilePath string) {
+	wgWXMP.Add(1)
+	defer func() {
+		semaArticle.Release(1)
+		wgWXMP.Done()
+	}()
 	cmd := exec.Command("phantomjs", "rasterize.js", inputFilePath, outputFilePath)
 	cmd.Run()
 }

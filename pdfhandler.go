@@ -2,20 +2,12 @@ package main
 
 import (
 	"errors"
-	"log"
 	"os"
 
 	pdf "github.com/unidoc/unidoc/pdf/model"
 )
 
-func merge(inputPaths []string, outputPath string) {
-	err := mergePdf(inputPaths, outputPath)
-	if err != nil {
-		log.Fatalln(err)
-	}
-}
-
-func mergePdf(inputPaths []string, outputPath string) error {
+func mergePDF(inputPaths []string, outputPath string) error {
 	pdfWriter := pdf.NewPdfWriter()
 
 	for _, inputPath := range inputPaths {
