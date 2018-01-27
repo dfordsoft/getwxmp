@@ -11,6 +11,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	uuid "github.com/satori/go.uuid"
@@ -89,11 +90,20 @@ var (
 		"Mozilla/5.0 (X11; Linux x86_64; rv:58.0) Gecko/20100101 Firefox/58.0",
 		"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/604.3.5 (KHTML, like Gecko) Version/11.0.1 Safari/604.3.5",
 	}
+	clientPool = sync.Pool{
+		New: func() interface{} {
+			return &http.Client{
+				Timeout: 30 * time.Second,
+			}
+		},
+	}
 )
 
 func downloadArticle(title string, u string) bool {
 	wgWXMP.Add(1)
+	client := clientPool.Get().(*http.Client)
 	defer func() {
+		clientPool.Put(client)
 		semaArticle.Release()
 		wgWXMP.Done()
 	}()
@@ -102,10 +112,7 @@ doRequest:
 	proxyString := fmt.Sprintf("%s://%s:%s", pi.Type, pi.Host, pi.Port)
 	proxyURL, _ := url.Parse(proxyString)
 
-	client := &http.Client{
-		Timeout:   30 * time.Second,
-		Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)},
-	}
+	client.Transport = &http.Transport{Proxy: http.ProxyURL(proxyURL)}
 
 	req, err := http.NewRequest("GET", u, nil)
 	if err != nil {
@@ -155,7 +162,9 @@ doRequest:
 
 func downloadImage(savePath string, u string) bool {
 	wgWXMP.Add(1)
+	client := clientPool.Get().(*http.Client)
 	defer func() {
+		clientPool.Put(client)
 		semaImage.Release()
 		wgWXMP.Done()
 	}()
@@ -164,10 +173,7 @@ doRequest:
 	proxyString := fmt.Sprintf("%s://%s:%s", pi.Type, pi.Host, pi.Port)
 	proxyURL, _ := url.Parse(proxyString)
 
-	client := &http.Client{
-		Timeout:   30 * time.Second,
-		Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)},
-	}
+	client.Transport = &http.Transport{Proxy: http.ProxyURL(proxyURL)}
 
 	req, err := http.NewRequest("GET", u, nil)
 	if err != nil {
