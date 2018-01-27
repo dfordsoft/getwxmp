@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"flag"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -76,5 +77,6 @@ func main() {
 	}))
 
 	proxy.Verbose = *verbose
+	proxy.Logger = log.New(ioutil.Discard, "GOPROXY: ", log.Ldate|log.Ltime|log.Lshortfile)
 	log.Fatal(http.ListenAndServe(*addr, proxy))
 }
