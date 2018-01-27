@@ -177,7 +177,8 @@ func getArticleList() {
 	fmt.Println("全部转换为PDF！一共", len(inputPaths), "篇文章。")
 
 	if err := mergePDF(inputPaths, wxmpTitle+".pdf"); err != nil {
-		log.Fatalln(err)
+		log.Println("merging PDF documents failed", err)
+		return
 	}
 	fmt.Println("全部PDF合并为" + wxmpTitle + ".pdf")
 }

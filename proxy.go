@@ -130,14 +130,15 @@ func validateProxyItem(pi proxyItem) bool {
 		removeProxyItem(pi)
 		return false
 	}
-	defer resp.Body.Close()
 
 	content, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
+		resp.Body.Close()
 		//fmt.Println(err)
 		removeProxyItem(pi)
 		return false
 	}
+	resp.Body.Close()
 
 	if len(content) > 200 {
 		//fmt.Println("too long response is treated as unexpected response")
@@ -171,9 +172,9 @@ doRequest:
 		return
 	}
 
-	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
 		log.Println("proxy list - proxy list request not 200")
+		resp.Body.Close()
 		retry++
 		if retry < 3 {
 			time.Sleep(3 * time.Second)
@@ -184,6 +185,7 @@ doRequest:
 
 	c, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
+		resp.Body.Close()
 		log.Println("proxy list - proxy list read err", err)
 		retry++
 		if retry < 3 {
@@ -192,6 +194,7 @@ doRequest:
 		}
 		return
 	}
+	resp.Body.Close()
 
 	scanner := bufio.NewScanner(bytes.NewReader(c))
 	scanner.Split(bufio.ScanLines)

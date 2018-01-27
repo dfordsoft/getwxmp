@@ -128,8 +128,8 @@ doRequest:
 		goto doRequest
 	}
 
-	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
+		resp.Body.Close()
 		//log.Println("article - article request not 200")
 		time.Sleep(3 * time.Second)
 		goto doRequest
@@ -138,8 +138,10 @@ doRequest:
 	content, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		//log.Println("article - ", err)
+		resp.Body.Close()
 		return false
 	}
+	resp.Body.Close()
 
 	invalid := `<p class="title">接相关投诉，此内容违反《即时通信工具公众信息服务发展管理暂行规定》，查看<a href="http://www.cac.gov.cn/2014-08/07/c_1111983456.htm">详细内容</a></p>`
 	if bytes.Contains(content, []byte(invalid)) {
@@ -189,9 +191,9 @@ doRequest:
 		goto doRequest
 	}
 
-	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
 		//log.Println("image - image request not 200")
+		resp.Body.Close()
 		time.Sleep(3 * time.Second)
 		goto doRequest
 	}
@@ -199,8 +201,11 @@ doRequest:
 	content, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		//log.Println("image - ", err)
+		resp.Body.Close()
 		return false
 	}
+	resp.Body.Close()
+
 	image, err := os.OpenFile(savePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		log.Println("opening file ", savePath, " for writing failed ", err)
