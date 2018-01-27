@@ -225,6 +225,6 @@ func phantomjs(inputFilePath string, outputFilePath string) {
 		semaArticle.Release()
 		wgWXMP.Done()
 	}()
-	cmd := exec.Command("phantomjs", "rasterize.js", inputFilePath, outputFilePath)
+	cmd := exec.Command("phantomjs", "rasterize.js", inputFilePath, outputFilePath, "A4")
 	cmd.Run()
 }
