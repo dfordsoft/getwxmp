@@ -66,7 +66,7 @@ func main() {
 		wxmpTitle = wxmpTitle[:end]
 		py := pinyin.LazyPinyin(strings.TrimSpace(wxmpTitle), pinyin.NewArgs())
 		wxmpTitle = strings.Join(py, "-")
-		os.Mkdir(wxmpTitle, 0644)
+		os.Mkdir(wxmpTitle, 0755)
 		return s
 	}))
 

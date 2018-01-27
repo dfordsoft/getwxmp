@@ -147,7 +147,7 @@ doRequest:
 	}
 
 	dir := fmt.Sprintf("%s/%s", wxmpTitle, title)
-	os.Mkdir(dir, 0644)
+	os.Mkdir(dir, 0755)
 	contentHTML, err := os.OpenFile(wxmpTitle+`/`+title+`.html`, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		log.Println("opening file "+wxmpTitle+`/`+title+`.html`+" for writing failed ", err)
