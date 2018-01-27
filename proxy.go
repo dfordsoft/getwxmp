@@ -105,16 +105,16 @@ func getProxyItem() proxyItem {
 }
 
 func validateProxyItem(pi proxyItem) bool {
-	c := clientPool.Get().(*http.Client)
+	client := clientPool.Get().(*http.Client)
 	defer func() {
-		clientPool.Put(c)
+		clientPool.Put(client)
 		semaProxy.Release()
 		wg.Done()
 	}()
 	proxyString := fmt.Sprintf("%s://%s:%s", pi.Type, pi.Host, pi.Port)
 	proxyURL, _ := url.Parse(proxyString)
 
-	c.Transport = &http.Transport{Proxy: http.ProxyURL(proxyURL)}
+	client.Transport = &http.Transport{Proxy: http.ProxyURL(proxyURL)}
 
 	req, err := http.NewRequest("GET", "http://ip.cn", nil)
 	if err != nil {
@@ -124,7 +124,7 @@ func validateProxyItem(pi proxyItem) bool {
 	}
 
 	req.Header.Set("User-Agent", "curl/7.54.0")
-	resp, err := c.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		//fmt.Println(err)
 		removeProxyItem(pi)
@@ -144,7 +144,7 @@ func validateProxyItem(pi proxyItem) bool {
 		removeProxyItem(pi)
 		return false
 	}
-	c = nil
+
 	return true
 }
 
