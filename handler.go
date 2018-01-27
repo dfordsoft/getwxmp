@@ -185,7 +185,7 @@ func getArticleList() {
 	fmt.Println("全部PDF合并为" + wxmpTitle + ".pdf")
 }
 
-func wkHTMLToPDF(inputFilePath string, outputFilePath string) {
+func wkhtmltopdf(inputFilePath string, outputFilePath string) {
 	wgWXMP.Add(1)
 	defer func() {
 		semaArticle.Release(1)
