@@ -173,5 +173,8 @@ func getArticleList() {
 		log.Println("merging PDF documents failed", err)
 		return
 	}
-	fmt.Println("全部PDF已合并为" + wxmpTitle + ".pdf")
+	fmt.Println("全部PDF已合并为", wxmpTitle+".pdf")
+
+	articleListRequestURL = ""
+	fmt.Println("可以继续抓取其他微信公众号文章了。")
 }
