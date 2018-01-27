@@ -25,9 +25,9 @@ var (
 	articleRequestHeader     http.Header
 	articleListRequestURL    string
 	articleListRequestHeader http.Header
-	semaArticle              = semaphore.New(10)
+	semaArticle              = semaphore.New(15)
 	wgWXMP                   sync.WaitGroup
-	semaImage                = semaphore.New(20)
+	semaImage                = semaphore.New(150)
 )
 
 type getMsgResponse struct {
@@ -98,6 +98,16 @@ func getArticleList() {
 		URL   string
 	}
 	var articles []article
+
+	duplicateArticle := func(a article) bool {
+		for _, art := range articles {
+			if a.URL == art.URL {
+				return true
+			}
+		}
+		return false
+	}
+
 	for i := 0; ; i += 10 {
 		u := strings.Replace(articleListRequestURL, "offset=0", fmt.Sprintf("offset=%d", i), -1)
 		b, e := httputil.GetBytes(u, articleListRequestHeader, 30*time.Second, 3)
@@ -121,16 +131,23 @@ func getArticleList() {
 		for _, v := range list.List {
 			_, e := url.Parse(strings.Replace(v.AppMsgExtInfo.ContentURL, `&amp;`, `&`, -1))
 			if v.AppMsgExtInfo.Title != "" && e == nil {
-				articles = append(articles, article{Title: v.AppMsgExtInfo.Title, URL: strings.Replace(v.AppMsgExtInfo.ContentURL, `&amp;`, `&`, -1)})
+				a := article{Title: v.AppMsgExtInfo.Title, URL: strings.Replace(v.AppMsgExtInfo.ContentURL, `&amp;`, `&`, -1)}
+				if !duplicateArticle(a) {
+					articles = append(articles, a)
+				}
 			}
 			for _, vv := range v.AppMsgExtInfo.MultiAppMsgItemList {
 				_, e := url.Parse(strings.Replace(vv.ContentURL, `&amp;`, `&`, -1))
 				if vv.Title != "" && e == nil {
-					articles = append(articles, article{Title: vv.Title, URL: strings.Replace(vv.ContentURL, `&amp;`, `&`, -1)})
+					a := article{Title: vv.Title, URL: strings.Replace(vv.ContentURL, `&amp;`, `&`, -1)}
+					if !duplicateArticle(a) {
+						articles = append(articles, a)
+					}
 				}
 			}
 		}
 
+		fmt.Printf("\r已经找到 %d 篇文章...", len(articles))
 		if m.CanMsgContinue == 0 {
 			break
 		}
