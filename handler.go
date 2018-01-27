@@ -6,6 +6,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"strconv"
@@ -118,9 +119,15 @@ func getArticleList() {
 		}
 
 		for _, v := range list.List {
-			articles = append(articles, article{Title: v.AppMsgExtInfo.Title, URL: strings.Replace(v.AppMsgExtInfo.ContentURL, `&amp;`, `&`, -1)})
+			_, e := url.Parse(strings.Replace(v.AppMsgExtInfo.ContentURL, `&amp;`, `&`, -1))
+			if v.AppMsgExtInfo.Title != "" && e == nil {
+				articles = append(articles, article{Title: v.AppMsgExtInfo.Title, URL: strings.Replace(v.AppMsgExtInfo.ContentURL, `&amp;`, `&`, -1)})
+			}
 			for _, vv := range v.AppMsgExtInfo.MultiAppMsgItemList {
-				articles = append(articles, article{Title: vv.Title, URL: strings.Replace(vv.ContentURL, `&amp;`, `&`, -1)})
+				_, e := url.Parse(strings.Replace(vv.ContentURL, `&amp;`, `&`, -1))
+				if vv.Title != "" && e == nil {
+					articles = append(articles, article{Title: vv.Title, URL: strings.Replace(vv.ContentURL, `&amp;`, `&`, -1)})
+				}
 			}
 		}
 
