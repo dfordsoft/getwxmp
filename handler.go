@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -16,8 +15,8 @@ import (
 
 	"github.com/dfordsoft/golib/fsutil"
 	"github.com/dfordsoft/golib/httputil"
+	"github.com/dfordsoft/golib/semaphore"
 	"github.com/elazarl/goproxy"
-	"golang.org/x/sync/semaphore"
 )
 
 var (
@@ -25,11 +24,9 @@ var (
 	articleRequestHeader     http.Header
 	articleListRequestURL    string
 	articleListRequestHeader http.Header
-	ctxArticle               = context.TODO()
-	semaArticle              = semaphore.NewWeighted(10)
+	semaArticle              = semaphore.New(10)
 	wgWXMP                   sync.WaitGroup
-	ctxImage                 = context.TODO()
-	semaImage                = semaphore.NewWeighted(20)
+	semaImage                = semaphore.New(20)
 )
 
 type getMsgResponse struct {
@@ -154,7 +151,7 @@ func getArticleList() {
 		l = 5
 	}
 	for i, a := range articles {
-		semaArticle.Acquire(ctxArticle, 1)
+		semaArticle.Acquire()
 		fmt.Println("downloading", fmt.Sprintf("%."+strconv.Itoa(l)+"d_article %s", i+1, a.Title), a.URL)
 		go downloadArticle(fmt.Sprintf("%."+strconv.Itoa(l)+"d_article", i+1), a.URL)
 	}
@@ -164,7 +161,7 @@ func getArticleList() {
 
 	var inputPaths []string
 	for i := range articles {
-		semaArticle.Acquire(ctxArticle, 1)
+		semaArticle.Acquire()
 		inputFilePath := fmt.Sprintf("%s/%."+strconv.Itoa(l)+"d_article.html", wxmpTitle, i+1)
 		if b, _ := fsutil.FileExists(inputFilePath); b {
 			outputFilePath := fmt.Sprintf("%s/%."+strconv.Itoa(l)+"d_article.pdf", wxmpTitle, i+1)
@@ -172,7 +169,7 @@ func getArticleList() {
 			fmt.Println("converting", inputFilePath, "to", outputFilePath)
 			go phantomjs(inputFilePath, outputFilePath)
 		} else {
-			semaArticle.Release(1)
+			semaArticle.Release()
 		}
 	}
 
@@ -188,7 +185,7 @@ func getArticleList() {
 func wkhtmltopdf(inputFilePath string, outputFilePath string) {
 	wgWXMP.Add(1)
 	defer func() {
-		semaArticle.Release(1)
+		semaArticle.Release()
 		wgWXMP.Done()
 	}()
 	cmd := exec.Command("wkhtmltopdf", inputFilePath, outputFilePath)
@@ -198,7 +195,7 @@ func wkhtmltopdf(inputFilePath string, outputFilePath string) {
 func phantomjs(inputFilePath string, outputFilePath string) {
 	wgWXMP.Add(1)
 	defer func() {
-		semaArticle.Release(1)
+		semaArticle.Release()
 		wgWXMP.Done()
 	}()
 	cmd := exec.Command("phantomjs", "rasterize.js", inputFilePath, outputFilePath)

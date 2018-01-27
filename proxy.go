@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -14,13 +13,12 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/sync/semaphore"
+	"github.com/dfordsoft/golib/semaphore"
 )
 
 var (
 	proxyList      = `https://raw.githubusercontent.com/fate0/proxylist/master/proxy.list`
-	semaProxy      = semaphore.NewWeighted(5)
-	ctxProxy       = context.TODO()
+	semaProxy      = semaphore.New(5)
 	wg             sync.WaitGroup
 	proxyPool      []proxyItem
 	proxyPoolMutex sync.RWMutex
@@ -67,7 +65,7 @@ func getProxyItem() proxyItem {
 
 func validateProxyItem(pi proxyItem) bool {
 	defer func() {
-		semaProxy.Release(1)
+		semaProxy.Release()
 		wg.Done()
 	}()
 	proxyString := fmt.Sprintf("%s://%s:%s", pi.Type, pi.Host, pi.Port)
@@ -163,7 +161,7 @@ doRequest:
 		line := scanner.Text()
 		if err = json.Unmarshal([]byte(line), &pi); err == nil {
 			insertProxyItem(pi)
-			semaProxy.Acquire(ctxProxy, 1)
+			semaProxy.Acquire()
 			wg.Add(1)
 			go validateProxyItem(pi)
 		}

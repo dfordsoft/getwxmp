@@ -94,7 +94,7 @@ var (
 func downloadArticle(title string, u string) bool {
 	wgWXMP.Add(1)
 	defer func() {
-		semaArticle.Release(1)
+		semaArticle.Release()
 		wgWXMP.Done()
 	}()
 doRequest:
@@ -156,7 +156,7 @@ doRequest:
 func downloadImage(savePath string, u string) bool {
 	wgWXMP.Add(1)
 	defer func() {
-		semaImage.Release(1)
+		semaImage.Release()
 		wgWXMP.Done()
 	}()
 doRequest:
@@ -227,7 +227,7 @@ func processArticle(title string, c []byte) []byte {
 			}
 			savePath := fmt.Sprintf("%s/%s/%s.%s", wxmpTitle, title, uuid.Must(uuid.NewV4()).String(), ext)
 			m[originalURL] = savePath
-			semaImage.Acquire(ctxArticle, 1)
+			semaImage.Acquire()
 			go downloadImage(savePath, originalURL)
 		}
 
@@ -245,7 +245,7 @@ func processArticle(title string, c []byte) []byte {
 			if strings.HasPrefix(originalURL, "//") {
 				originalURL = "https:" + originalURL
 			}
-			semaImage.Acquire(ctxArticle, 1)
+			semaImage.Acquire()
 			go downloadImage(savePath, originalURL)
 		}
 	}
