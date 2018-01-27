@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"os"
 	"sync"
 	"time"
 
@@ -29,6 +30,46 @@ type proxyItem struct {
 	Type    string      `json:"type"`
 	Host    string      `json:"host"`
 	Country string      `json:"country"`
+}
+
+func loadProxyItems() bool {
+	proxyJSON, err := os.OpenFile("proxy.json", os.O_RDONLY, 0644)
+	if err != nil {
+		log.Println("opening file proxy.json for reading failed ", err)
+		return false
+	}
+	defer proxyJSON.Close()
+	b, e := ioutil.ReadAll(proxyJSON)
+	if e != nil {
+		log.Println("reading proxy.json failed", err)
+		return false
+	}
+
+	e = json.Unmarshal(b, &proxyPool)
+	if e != nil {
+		log.Println("unmarshalling proxy.json failed", err)
+		return false
+	}
+
+	return true
+}
+
+func saveProxyItems() bool {
+	proxyPoolMutex.RLock()
+	b, e := json.Marshal(proxyPool)
+	proxyPoolMutex.RUnlock()
+	if e != nil {
+		log.Println("marshalling proxy pool failed", e)
+		return false
+	}
+	proxyJSON, err := os.OpenFile("proxy.json", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		log.Println("opening file proxy.json for writing failed ", err)
+		return false
+	}
+	proxyJSON.Write(b)
+	proxyJSON.Close()
+	return true
 }
 
 func insertProxyItem(pi proxyItem) {
@@ -166,9 +207,11 @@ doRequest:
 		}
 	}
 	wg.Wait()
+	saveProxyItems()
 }
 
 func updateProxyPierodically() {
+	loadProxyItems()
 	updateProxy()
 	ticker := time.NewTicker(15 * time.Minute)
 	for {
