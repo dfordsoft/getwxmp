@@ -43,29 +43,29 @@ install:
   - go get github.com/dfordsoft/getwxmp
 script:
   - pwd && ls -l
-  - env GOARCH=amd64 GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-amd64.tar.gz cert/ca.key cert/ca.cer getwxmp
-  - env GOARCH=386 GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-x86.tar.gz cert/ca.key cert/ca.cer getwxmp
-  - env GOARCH=arm GOARM=5 GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-armv5.tar.gz cert/ca.key cert/ca.cer getwxmp
-  - env GOARCH=arm GOARM=6 GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-armv6.tar.gz cert/ca.key cert/ca.cer getwxmp
-  - env GOARCH=arm GOARM=7 GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-armv7.tar.gz cert/ca.key cert/ca.cer getwxmp
-  - env GOARCH=arm64 GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-arm64.tar.gz cert/ca.key cert/ca.cer getwxmp
-  - env GOARCH=ppc64 GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-ppc64.tar.gz cert/ca.key cert/ca.cer getwxmp
-  - env GOARCH=ppc64le GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-ppc64le.tar.gz cert/ca.key cert/ca.cer getwxmp
-  - env GOARCH=mips64 GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-mips64.tar.gz cert/ca.key cert/ca.cer getwxmp
-  - env GOARCH=mips64le GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-mips64le.tar.gz cert/ca.key cert/ca.cer getwxmp
-  - env GOARCH=mips GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-mips.tar.gz cert/ca.key cert/ca.cer getwxmp
-  - env GOARCH=mipsle GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-mipsle.tar.gz cert/ca.key cert/ca.cer getwxmp
-  - env GOARCH=amd64 GOOS=darwin go build  && tar czvf getwxmp-darwin-amd64.tar.gz cert/ca.key cert/ca.cer getwxmp
-  - env GOARCH=amd64 GOOS=windows go build  && tar czvf getwxmp-windows-amd64.tar.gz cert/ca.key cert/ca.cer getwxmp.exe
-  - env GOARCH=386 GOOS=windows go build  && tar czvf getwxmp-windows-x86.tar.gz cert/ca.key cert/ca.cer getwxmp.exe
-  - env GOARCH=amd64 GOOS=freebsd go build  && tar czvf getwxmp-freebsd-amd64.tar.gz cert/ca.key cert/ca.cer getwxmp
-  - env GOARCH=386 GOOS=freebsd go build  && tar czvf getwxmp-freebsd-x86.tar.gz cert/ca.key cert/ca.cer getwxmp
-  - env GOARCH=arm GOOS=freebsd go build  && tar czvf getwxmp-freebsd-arm.tar.gz cert/ca.key cert/ca.cer getwxmp
-  - env GOARCH=amd64 GOOS=openbsd go build  && tar czvf getwxmp-openbsd-amd64.tar.gz cert/ca.key cert/ca.cer getwxmp
-  - env GOARCH=386 GOOS=openbsd go build  && tar czvf getwxmp-openbsd-x86.tar.gz cert/ca.key cert/ca.cer getwxmp
-  - env GOARCH=amd64 GOOS=netbsd go build  && tar czvf getwxmp-netbsd-amd64.tar.gz cert/ca.key cert/ca.cer getwxmp
-  - env GOARCH=386 GOOS=netbsd go build  && tar czvf getwxmp-netbsd-x86.tar.gz cert/ca.key cert/ca.cer getwxmp
-  - env GOARCH=arm GOOS=netbsd go build  && tar czvf getwxmp-netbsd-arm.tar.gz cert/ca.key cert/ca.cer getwxmp
-  - env GOARCH=amd64 GOOS=dragonfly go build  && tar czvf getwxmp-dragonflybsd-amd64.tar.gz cert/ca.key cert/ca.cer getwxmp
-  - env GOARCH=amd64 GOOS=solaris go build  && tar czvf getwxmp-solaris-amd64.tar.gz cert/ca.key cert/ca.cer getwxmp
+  - env GOARCH=amd64 GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-amd64.tar.gz cert/ca.key rasterize.js proxy.json cert/ca.cer getwxmp
+  - env GOARCH=386 GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-x86.tar.gz cert/ca.key rasterize.js proxy.json cert/ca.cer getwxmp
+  - env GOARCH=arm GOARM=5 GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-armv5.tar.gz cert/ca.key rasterize.js proxy.json cert/ca.cer getwxmp
+  - env GOARCH=arm GOARM=6 GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-armv6.tar.gz cert/ca.key rasterize.js proxy.json cert/ca.cer getwxmp
+  - env GOARCH=arm GOARM=7 GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-armv7.tar.gz cert/ca.key rasterize.js proxy.json cert/ca.cer getwxmp
+  - env GOARCH=arm64 GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-arm64.tar.gz cert/ca.key rasterize.js proxy.json cert/ca.cer getwxmp
+  - env GOARCH=ppc64 GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-ppc64.tar.gz cert/ca.key rasterize.js proxy.json cert/ca.cer getwxmp
+  - env GOARCH=ppc64le GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-ppc64le.tar.gz cert/ca.key rasterize.js proxy.json cert/ca.cer getwxmp
+  - env GOARCH=mips64 GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-mips64.tar.gz cert/ca.key rasterize.js proxy.json cert/ca.cer getwxmp
+  - env GOARCH=mips64le GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-mips64le.tar.gz cert/ca.key rasterize.js proxy.json cert/ca.cer getwxmp
+  - env GOARCH=mips GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-mips.tar.gz cert/ca.key rasterize.js proxy.json cert/ca.cer getwxmp
+  - env GOARCH=mipsle GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-mipsle.tar.gz cert/ca.key rasterize.js proxy.json cert/ca.cer getwxmp
+  - env GOARCH=amd64 GOOS=darwin go build  && tar czvf getwxmp-darwin-amd64.tar.gz cert/ca.key rasterize.js proxy.json cert/ca.cer getwxmp
+  - env GOARCH=amd64 GOOS=windows go build  && tar czvf getwxmp-windows-amd64.tar.gz cert/ca.key rasterize.js proxy.json cert/ca.cer getwxmp.exe
+  - env GOARCH=386 GOOS=windows go build  && tar czvf getwxmp-windows-x86.tar.gz cert/ca.key rasterize.js proxy.json cert/ca.cer getwxmp.exe
+  - env GOARCH=amd64 GOOS=freebsd go build  && tar czvf getwxmp-freebsd-amd64.tar.gz cert/ca.key rasterize.js proxy.json cert/ca.cer getwxmp
+  - env GOARCH=386 GOOS=freebsd go build  && tar czvf getwxmp-freebsd-x86.tar.gz cert/ca.key rasterize.js proxy.json cert/ca.cer getwxmp
+  - env GOARCH=arm GOOS=freebsd go build  && tar czvf getwxmp-freebsd-arm.tar.gz cert/ca.key rasterize.js proxy.json cert/ca.cer getwxmp
+  - env GOARCH=amd64 GOOS=openbsd go build  && tar czvf getwxmp-openbsd-amd64.tar.gz cert/ca.key rasterize.js proxy.json cert/ca.cer getwxmp
+  - env GOARCH=386 GOOS=openbsd go build  && tar czvf getwxmp-openbsd-x86.tar.gz cert/ca.key rasterize.js proxy.json cert/ca.cer getwxmp
+  - env GOARCH=amd64 GOOS=netbsd go build  && tar czvf getwxmp-netbsd-amd64.tar.gz cert/ca.key rasterize.js proxy.json cert/ca.cer getwxmp
+  - env GOARCH=386 GOOS=netbsd go build  && tar czvf getwxmp-netbsd-x86.tar.gz cert/ca.key rasterize.js proxy.json cert/ca.cer getwxmp
+  - env GOARCH=arm GOOS=netbsd go build  && tar czvf getwxmp-netbsd-arm.tar.gz cert/ca.key rasterize.js proxy.json cert/ca.cer getwxmp
+  - env GOARCH=amd64 GOOS=dragonfly go build  && tar czvf getwxmp-dragonflybsd-amd64.tar.gz cert/ca.key rasterize.js proxy.json cert/ca.cer getwxmp
+  - env GOARCH=amd64 GOOS=solaris go build  && tar czvf getwxmp-solaris-amd64.tar.gz cert/ca.key rasterize.js proxy.json cert/ca.cer getwxmp
   - ls -l
