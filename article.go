@@ -3,6 +3,10 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"image"
+	"image/draw"
+	"image/gif"
+	"io"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -227,16 +231,80 @@ doRequest:
 		return false
 	}
 
-	image, err := os.OpenFile(savePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		log.Println("opening file ", savePath, " for writing failed ", err)
-		return false
+	if ext := filepath.Ext(savePath); strings.ToLower(ext) == ".gif" {
+		saveLastFrame(bytes.NewReader(content), savePath)
+	} else {
+		image, err := os.OpenFile(savePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+		if err != nil {
+			log.Println("opening file ", savePath, " for writing failed ", err)
+			return false
+		}
+
+		image.Write(content)
+		image.Close()
 	}
 
-	image.Write(content)
-	image.Close()
-
 	return true
+}
+
+// Decode reads and analyzes the given reader as a GIF image
+func saveLastFrame(reader io.Reader, savePath string) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("Error while decoding: %s", r)
+		}
+	}()
+
+	gifImage, err := gif.DecodeAll(reader)
+	if err != nil {
+		return err
+	}
+
+	imgWidth, imgHeight := getGifDimensions(gifImage)
+
+	overpaintImage := image.NewRGBA(image.Rect(0, 0, imgWidth, imgHeight))
+	draw.Draw(overpaintImage, overpaintImage.Bounds(), gifImage.Image[0], image.ZP, draw.Src)
+
+	srcImg := gifImage.Image[len(gifImage.Image)-1]
+	draw.Draw(overpaintImage, overpaintImage.Bounds(), srcImg, image.ZP, draw.Over)
+
+	// save current frame "stack". This will overwrite an existing file with that name
+	file, err := os.Create(savePath)
+	if err != nil {
+		return err
+	}
+
+	err = gif.Encode(file, overpaintImage, nil)
+	if err != nil {
+		return err
+	}
+
+	file.Close()
+	return nil
+}
+
+func getGifDimensions(gif *gif.GIF) (x, y int) {
+	var lowestX int
+	var lowestY int
+	var highestX int
+	var highestY int
+
+	for _, img := range gif.Image {
+		if img.Rect.Min.X < lowestX {
+			lowestX = img.Rect.Min.X
+		}
+		if img.Rect.Min.Y < lowestY {
+			lowestY = img.Rect.Min.Y
+		}
+		if img.Rect.Max.X > highestX {
+			highestX = img.Rect.Max.X
+		}
+		if img.Rect.Max.Y > highestY {
+			highestY = img.Rect.Max.Y
+		}
+	}
+
+	return highestX - lowestX, highestY - lowestY
 }
 
 func parseDataSrc(b []byte) (originalURL string, ext string) {
