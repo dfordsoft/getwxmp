@@ -317,11 +317,14 @@ func processArticleContent(saveTo string, c []byte) []byte {
 		c = bytes.Replace(c, []byte(fmt.Sprintf(`data-src="%s"`, originalURL)), []byte(fmt.Sprintf(`src="%s"`, localPath[len(wxmpTitle)+1:])), -1)
 		c = bytes.Replace(c, []byte(originalURL), []byte(localPath[9:]), -1)
 	}
+	if opts.FontFamily != "" {
+		c = bytes.Replace(c, []byte(`"Helvetica Neue"`), []byte(opts.FontFamily+`,"Helvetica Neue"`), -1)
+	}
 	return c
 }
 
 func convertToPDF(inputFilePath string, outputFilePath string) {
 	fmt.Println("正在转换", inputFilePath, "为", outputFilePath)
-	cmd := exec.Command("phantomjs", "rasterize.js", inputFilePath, outputFilePath, "A4")
+	cmd := exec.Command("phantomjs", "rasterize.js", inputFilePath, outputFilePath, opts.PaperSize, opts.Zoom, opts.Margin)
 	cmd.Run()
 }

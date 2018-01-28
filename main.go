@@ -22,10 +22,15 @@ import (
 // Options defines structure for command line options
 type Options struct {
 	Verbose         bool   `short:"v" long:"verbose" description:"should every proxy request be logged to stdout"`
-	UpdateProxyOnly bool   `short:"p" long:"updateProxyOnly" description:"update proxy list only then exit immediately"`
+	DisableProxyLog bool   `long:"disable-proxy-log" description:"disable proxy logs"`
+	UpdateProxyOnly bool   `short:"p" long:"update-proxy-only" description:"update proxy list only then exit immediately"`
 	Address         string `short:"a" long:"address" description:"set listen address"`
-	CaCert          string `long:"cacert" description:"set ca certificate file path"`
-	CaKey           string `long:"cakey" description:"set ca private key file path"`
+	CaCert          string `short:"c" long:"ca-cert" description:"set ca certificate file path"`
+	CaKey           string `short:"k" long:"ca-key" description:"set ca private key file path"`
+	PaperSize       string `short:"s" long:"paper-size" description:"set output PDF paper size, examples: 5in*7.5in, 10cm*20cm, A4, Letter. Supported dimension units are: 'mm', 'cm', 'in', 'px'. No unit means 'px'. Supported formats are: 'A3', 'A4', 'A5', 'Legal', 'Letter', 'Tabloid'."`
+	Margin          string `short:"m" long:"margin" description:"set page margins, example: 0px, 0.2cm. Supported dimension units are: 'mm', 'cm', 'in', 'px'. No unit means 'px'."`
+	Zoom            string `short:"z" long:"zoom" description:"set paper zoom factor, the default is 1, i.e. 100% zoom."`
+	FontFamily      string `short:"f" long:"font-family" description:"set font family, which should be installed in the system"`
 	Parallel        int    `long:"parallel" description:"set concurrent downloading count"`
 }
 
@@ -33,11 +38,15 @@ var (
 	wxmpTitle string
 	opts      = Options{
 		Verbose:         false,
+		DisableProxyLog: true,
 		UpdateProxyOnly: false,
 		Address:         ":8080",
 		CaCert:          "cert/ca.cer",
 		CaKey:           "cert/ca.key",
 		Parallel:        15,
+		PaperSize:       "A4",
+		Margin:          "0.2cm",
+		Zoom:            "1",
 	}
 	semaImage   *semaphore.Semaphore
 	semaArticle *semaphore.Semaphore
@@ -149,6 +158,8 @@ func main() {
 	}))
 
 	proxy.Verbose = opts.Verbose
-	proxy.Logger = log.New(ioutil.Discard, "GOPROXY: ", log.Ldate|log.Ltime|log.Lshortfile)
+	if opts.Verbose == false && opts.DisableProxyLog {
+		proxy.Logger = log.New(ioutil.Discard, "GOPROXY: ", log.Ldate|log.Ltime|log.Lshortfile)
+	}
 	log.Fatal(http.ListenAndServe(opts.Address, proxy))
 }
