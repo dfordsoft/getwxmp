@@ -270,23 +270,30 @@ doRequest:
 	}
 
 	if ext := filepath.Ext(savePath); strings.ToLower(ext) == ".gif" {
-		saveLastFrame(bytes.NewReader(content), savePath)
-	} else {
-		image, err := os.OpenFile(savePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-		if err != nil {
-			log.Println("opening file ", savePath, " for writing failed ", err)
+		if err = saveAnimatedGIFAsStaticImage(bytes.NewReader(content), savePath); err != nil {
+			log.Println("saving animated GIF as static image failed", err)
 			return false
 		}
-
-		image.Write(content)
-		image.Close()
+	} else {
+		return saveImage(content, savePath)
 	}
 
 	return true
 }
 
-// Decode reads and analyzes the given reader as a GIF image
-func saveLastFrame(reader io.Reader, savePath string) (err error) {
+func saveImage(b []byte, savePath string) bool {
+	image, err := os.OpenFile(savePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		log.Println("opening file ", savePath, " for writing failed ", err)
+		return false
+	}
+
+	image.Write(b)
+	image.Close()
+	return true
+}
+
+func saveAnimatedGIFAsStaticImage(reader io.Reader, savePath string) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("Error while decoding: %s", r)
@@ -311,13 +318,13 @@ func saveLastFrame(reader io.Reader, savePath string) (err error) {
 	if err != nil {
 		return err
 	}
+	defer file.Close()
 
 	err = gif.Encode(file, overpaintImage, nil)
 	if err != nil {
 		return err
 	}
 
-	file.Close()
 	return nil
 }
 
