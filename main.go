@@ -12,8 +12,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/dfordsoft/golib/ic"
-
 	"github.com/dfordsoft/golib/filter"
 	"github.com/dfordsoft/golib/semaphore"
 	"github.com/elazarl/goproxy"
@@ -107,11 +105,7 @@ func main() {
 	semaImage = semaphore.New(opts.Parallel * 10)
 	semaArticle = semaphore.New(opts.Parallel)
 	semaPDF = semaphore.New(opts.Parallel)
-	if runtime.GOOS == "windows" {
-		titleFilter = filter.Filter(ic.ConvertString("gbk", "utf-8", opts.Filter))
-	} else {
-		titleFilter = filter.Filter(opts.Filter)
-	}
+	titleFilter = filter.Filter(opts.Filter)
 
 	if err := setCA(opts.CaCert, opts.CaKey); err != nil {
 		log.Fatalln(err)
