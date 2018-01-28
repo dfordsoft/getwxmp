@@ -170,11 +170,13 @@ func downloadArticle(saveTo string, a article) bool {
 		clientPool.Put(client)
 	}()
 doRequest:
-	pi := getProxyItem()
-	proxyString := fmt.Sprintf("%s://%s:%s", pi.Type, pi.Host, pi.Port)
-	proxyURL, _ := url.Parse(proxyString)
+	if !opts.DirectConnecting {
+		pi := getProxyItem()
+		proxyString := fmt.Sprintf("%s://%s:%s", pi.Type, pi.Host, pi.Port)
+		proxyURL, _ := url.Parse(proxyString)
 
-	client.Transport.(*http.Transport).Proxy = http.ProxyURL(proxyURL)
+		client.Transport.(*http.Transport).Proxy = http.ProxyURL(proxyURL)
+	}
 
 	req, err := http.NewRequest("GET", a.URL, nil)
 	if err != nil {
@@ -231,11 +233,13 @@ func downloadImage(savePath string, u string, wg *sync.WaitGroup) bool {
 		wg.Done()
 	}()
 doRequest:
-	pi := getProxyItem()
-	proxyString := fmt.Sprintf("%s://%s:%s", pi.Type, pi.Host, pi.Port)
-	proxyURL, _ := url.Parse(proxyString)
+	if !opts.DirectConnecting {
+		pi := getProxyItem()
+		proxyString := fmt.Sprintf("%s://%s:%s", pi.Type, pi.Host, pi.Port)
+		proxyURL, _ := url.Parse(proxyString)
 
-	client.Transport.(*http.Transport).Proxy = http.ProxyURL(proxyURL)
+		client.Transport.(*http.Transport).Proxy = http.ProxyURL(proxyURL)
+	}
 
 	req, err := http.NewRequest("GET", u, nil)
 	if err != nil {
@@ -299,9 +303,9 @@ func saveLastFrame(reader io.Reader, savePath string) (err error) {
 	overpaintImage := image.NewRGBA(image.Rect(0, 0, imgWidth, imgHeight))
 	draw.Draw(overpaintImage, overpaintImage.Bounds(), gifImage.Image[0], image.ZP, draw.Src)
 
-	srcImg := gifImage.Image[len(gifImage.Image)-1]
-	draw.Draw(overpaintImage, overpaintImage.Bounds(), srcImg, image.ZP, draw.Over)
-
+	for _, srcImg := range gifImage.Image {
+		draw.Draw(overpaintImage, overpaintImage.Bounds(), srcImg, image.ZP, draw.Over)
+	}
 	// save current frame "stack". This will overwrite an existing file with that name
 	file, err := os.Create(savePath)
 	if err != nil {

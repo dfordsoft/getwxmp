@@ -22,39 +22,41 @@ import (
 
 // Options defines structure for command line options
 type Options struct {
-	Verbose         bool   `short:"v" long:"verbose" description:"should every proxy request be logged to stdout"`
-	DisableProxyLog bool   `long:"disable-proxy-log" description:"disable proxy logs"`
-	UpdateProxyOnly bool   `short:"p" long:"update-proxy-only" description:"update proxy list only then exit immediately"`
-	Address         string `short:"a" long:"address" description:"set listen address"`
-	CaCert          string `short:"c" long:"ca-cert" description:"set ca certificate file path"`
-	CaKey           string `short:"k" long:"ca-key" description:"set ca private key file path"`
-	PaperSize       string `short:"s" long:"paper-size" description:"set output PDF paper size, examples: 5in*7.5in, 10cm*20cm, A4, Letter. Supported dimension units are: 'mm', 'cm', 'in', 'px'. No unit means 'px'. Supported formats are: 'A3', 'A4', 'A5', 'Legal', 'Letter', 'Tabloid'."`
-	Margin          string `short:"m" long:"margin" description:"set page margins, examples: 0px, 0.2cm. Supported dimension units are: 'mm', 'cm', 'in', 'px'. No unit means 'px'."`
-	Zoom            string `short:"z" long:"zoom" description:"set paper zoom factor, the default is 1, i.e. 100% zoom."`
-	FontFamily      string `short:"f" long:"font-family" description:"set font family, which should be installed in the system"`
-	Parallel        int    `long:"parallel" description:"set concurrent downloading count"`
-	ReverseOrder    bool   `short:"r" long:"reverse-order" description:"put older articles in front"`
-	Filter          string `short:"i" long:"filter" description:"set filter to article title, supported: contains(), equal(), suffix(), prefix(), regexp(), !contains(), !equal(), !suffix(), !prefix(), !regexp()"`
+	Verbose          bool   `short:"v" long:"verbose" description:"should every proxy request be logged to stdout"`
+	DisableProxyLog  bool   `long:"disable-proxy-log" description:"disable proxy logs"`
+	UpdateProxyOnly  bool   `short:"p" long:"update-proxy-only" description:"update proxy list only then exit immediately"`
+	DirectConnecting bool   `short:"d" long:"direct-connecting" description:"download articles/image without proxy"`
+	Address          string `short:"a" long:"address" description:"set listen address"`
+	CaCert           string `short:"c" long:"ca-cert" description:"set ca certificate file path"`
+	CaKey            string `short:"k" long:"ca-key" description:"set ca private key file path"`
+	PaperSize        string `short:"s" long:"paper-size" description:"set output PDF paper size, examples: 5in*7.5in, 10cm*20cm, A4, Letter. Supported dimension units are: 'mm', 'cm', 'in', 'px'. No unit means 'px'. Supported formats are: 'A3', 'A4', 'A5', 'Legal', 'Letter', 'Tabloid'."`
+	Margin           string `short:"m" long:"margin" description:"set page margins, examples: 0px, 0.2cm. Supported dimension units are: 'mm', 'cm', 'in', 'px'. No unit means 'px'."`
+	Zoom             string `short:"z" long:"zoom" description:"set paper zoom factor, the default is 1, i.e. 100% zoom."`
+	FontFamily       string `short:"f" long:"font-family" description:"set font family, which should be installed in the system"`
+	Parallel         int    `long:"parallel" description:"set concurrent downloading count"`
+	ReverseOrder     bool   `short:"r" long:"reverse-order" description:"put older articles in front"`
+	Filter           string `short:"i" long:"filter" description:"set filter to article title, supported: contains(), equal(), suffix(), prefix(), regexp(), !contains(), !equal(), !suffix(), !prefix(), !regexp()"`
 }
 
 var (
 	wxmpTitle string
 	opts      = Options{
-		Verbose:         false,
-		DisableProxyLog: true,
-		UpdateProxyOnly: false,
-		Address:         ":8080",
-		CaCert:          "cert/ca.cer",
-		CaKey:           "cert/ca.key",
-		Parallel:        15,
-		ReverseOrder:    false,
-		PaperSize:       "A4",
-		Margin:          "0.2cm",
-		Zoom:            "1",
+		Verbose:          false,
+		DisableProxyLog:  true,
+		UpdateProxyOnly:  false,
+		DirectConnecting: false,
+		Address:          ":8080",
+		CaCert:           "cert/ca.cer",
+		CaKey:            "cert/ca.key",
+		Parallel:         15,
+		ReverseOrder:     false,
+		PaperSize:        "A4",
+		Margin:           "0.2cm",
+		Zoom:             "1",
 	}
 	semaImage   *semaphore.Semaphore
 	semaArticle *semaphore.Semaphore
-	semaPDF     *semaphore.Semaphore
+	semaPDF     = semaphore.New(15)
 	titleFilter filter.F
 )
 
@@ -76,9 +78,9 @@ func setCA(caCert, caKey string) error {
 
 func main() {
 	p := map[string]int{
-		"windows":   50,
+		"windows":   30,
 		"darwin":    15,
-		"android":   15,
+		"android":   5,
 		"linux":     30,
 		"dragonfly": 30,
 		"freebsd":   30,
@@ -102,16 +104,19 @@ func main() {
 		return
 	}
 
+	
+
 	semaImage = semaphore.New(opts.Parallel * 10)
 	semaArticle = semaphore.New(opts.Parallel)
-	semaPDF = semaphore.New(opts.Parallel)
 	titleFilter = filter.Filter(opts.Filter)
 
 	if err := setCA(opts.CaCert, opts.CaKey); err != nil {
 		log.Fatalln(err)
 	}
 
-	go updateProxyPierodically()
+	if !opts.DirectConnecting {
+		go updateProxyPierodically()
+	}
 
 	proxy := goproxy.NewProxyHttpServer()
 	proxy.OnRequest().HandleConnect(goproxy.AlwaysMitm)
