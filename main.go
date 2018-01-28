@@ -3,22 +3,45 @@ package main
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"unicode/utf8"
 
+	"github.com/dfordsoft/golib/semaphore"
 	"github.com/elazarl/goproxy"
 	"github.com/elazarl/goproxy/ext/html"
+	flags "github.com/jessevdk/go-flags"
 	"github.com/mozillazg/go-pinyin"
 )
 
+// Options defines structure for command line options
+type Options struct {
+	Verbose         bool   `short:"v" long:"verbose" description:"should every proxy request be logged to stdout"`
+	UpdateProxyOnly bool   `short:"p" long:"updateProxyOnly" description:"update proxy list only then exit immediately"`
+	Address         string `short:"a" long:"address" description:"set listen address"`
+	CaCert          string `long:"cacert" description:"set ca certificate file path"`
+	CaKey           string `long:"cakey" description:"set ca private key file path"`
+	Parallel        int    `long:"parallel" description:"set concurrent downloading count"`
+}
+
 var (
 	wxmpTitle string
+	opts      = Options{
+		Verbose:         false,
+		UpdateProxyOnly: false,
+		Address:         ":8080",
+		CaCert:          "cert/ca.cer",
+		CaKey:           "cert/ca.key",
+		Parallel:        15,
+	}
+	semaImage   *semaphore.Semaphore
+	semaArticle *semaphore.Semaphore
+	semaPDF     *semaphore.Semaphore
 )
 
 func setCA(caCert, caKey string) error {
@@ -38,22 +61,43 @@ func setCA(caCert, caKey string) error {
 }
 
 func main() {
-	verbose := flag.Bool("v", false, "should every proxy request be logged to stdout")
-	updateProxyOnly := flag.Bool("proxy", false, "update proxy list only")
-	addr := flag.String("addr", ":8080", "proxy listen address")
-	caCert := flag.String("cert", "cert/ca.cer", "set ca certificate file path")
-	caKey := flag.String("key", "cert/ca.key", "set ca private key file path")
-	flag.Parse()
+	p := map[string]int{
+		"windows":   50,
+		"darwin":    15,
+		"android":   15,
+		"linux":     30,
+		"dragonfly": 30,
+		"freebsd":   30,
+		"netbsd":    30,
+		"openbsd":   30,
+		"saloris":   30,
+		"plan9":     30,
+	}
+	opts.Parallel = p[runtime.GOOS]
 
-	if *updateProxyOnly {
+	_, err := flags.Parse(&opts)
+	if err != nil {
+		if err.(*flags.Error).Type != flags.ErrHelp {
+			log.Fatalln("invalid command line options", err)
+		}
+		return
+	}
+
+	if opts.UpdateProxyOnly {
 		updateProxy()
 		return
 	}
-	go updateProxyPierodically()
 
-	if err := setCA(*caCert, *caKey); err != nil {
+	semaImage = semaphore.New(opts.Parallel * 10)
+	semaArticle = semaphore.New(opts.Parallel)
+	semaPDF = semaphore.New(opts.Parallel)
+
+	if err := setCA(opts.CaCert, opts.CaKey); err != nil {
 		log.Fatalln(err)
 	}
+
+	go updateProxyPierodically()
+
 	proxy := goproxy.NewProxyHttpServer()
 	proxy.OnRequest().HandleConnect(goproxy.AlwaysMitm)
 
@@ -104,7 +148,7 @@ func main() {
 		return s
 	}))
 
-	proxy.Verbose = *verbose
+	proxy.Verbose = opts.Verbose
 	proxy.Logger = log.New(ioutil.Discard, "GOPROXY: ", log.Ldate|log.Ltime|log.Lshortfile)
-	log.Fatal(http.ListenAndServe(*addr, proxy))
+	log.Fatal(http.ListenAndServe(opts.Address, proxy))
 }

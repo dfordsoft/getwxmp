@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dfordsoft/golib/semaphore"
 	uuid "github.com/satori/go.uuid"
 )
 
@@ -104,9 +103,6 @@ var (
 			}
 		},
 	}
-	semaImage   = semaphore.New(150)
-	semaArticle = semaphore.New(15)
-	semaPDF     = semaphore.New(15)
 )
 
 func processArticle(saveTo string, a article) {
