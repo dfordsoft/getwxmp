@@ -128,7 +128,7 @@ func getArticleList() {
 
 		for _, v := range list.List {
 			_, e := url.Parse(strings.Replace(v.AppMsgExtInfo.ContentURL, `&amp;`, `&`, -1))
-			if v.AppMsgExtInfo.Title != "" && e == nil {
+			if v.AppMsgExtInfo.Title != "" && e == nil && titleFilter(v.AppMsgExtInfo.Title) {
 				a := article{Title: v.AppMsgExtInfo.Title, URL: strings.Replace(v.AppMsgExtInfo.ContentURL, `&amp;`, `&`, -1)}
 				if !duplicateArticle(a) {
 					articles = append(articles, a)
@@ -138,7 +138,7 @@ func getArticleList() {
 			}
 			for _, vv := range v.AppMsgExtInfo.MultiAppMsgItemList {
 				_, e := url.Parse(strings.Replace(vv.ContentURL, `&amp;`, `&`, -1))
-				if vv.Title != "" && e == nil {
+				if vv.Title != "" && e == nil && titleFilter(vv.Title) {
 					a := article{Title: vv.Title, URL: strings.Replace(vv.ContentURL, `&amp;`, `&`, -1)}
 					if !duplicateArticle(a) {
 						articles = append(articles, a)
@@ -164,7 +164,11 @@ func getArticleList() {
 	for i := 0; i < len(articles); i++ {
 		inputFilePath := fmt.Sprintf("%s/%d%s.pdf", wxmpTitle, i+1, titleSuffix)
 		if b, _ := fsutil.FileExists(inputFilePath); b {
-			inputPaths = append(inputPaths, inputFilePath)
+			if opts.ReverseOrder {
+				inputPaths = append([]string{inputFilePath}, inputPaths...)
+			} else {
+				inputPaths = append(inputPaths, inputFilePath)
+			}
 		}
 	}
 
