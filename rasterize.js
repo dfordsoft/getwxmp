@@ -4,7 +4,7 @@ var page = require('webpage').create(),
     address, output, size, pageWidth, pageHeight;
 var fs = require('fs');
 
-if (system.args.length < 3 || system.args.length > 5) {
+if (system.args.length < 3 || system.args.length > 6) {
     console.log('Usage: rasterize.js URL filename [paperwidth*paperheight|paperformat] [zoom] [margin]');
     console.log('  paper (pdf output) examples: "5in*7.5in", "10cm*20cm", "A4", "Letter"');
     console.log('  image (png/jpg output) examples: "1920px" entire page, window width 1920px');
