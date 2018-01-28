@@ -107,11 +107,43 @@ var (
 			}
 		},
 	}
+	inProgress articleQueue
 )
+
+type articleQueue struct {
+	sync.RWMutex
+	articles []article
+}
+
+func (aq *articleQueue) status() {
+	aq.RLock()
+	defer aq.RUnlock()
+	if len(aq.articles) < 5 {
+		fmt.Println("还有", len(aq.articles), "篇文章没有下载并转换完成")
+	}
+}
+
+func (aq *articleQueue) add(a article) {
+	aq.Lock()
+	defer aq.Unlock()
+	aq.articles = append(aq.articles, a)
+}
+
+func (aq *articleQueue) remove(a article) {
+	aq.Lock()
+	defer aq.Unlock()
+	for i, art := range aq.articles {
+		if a.Title == art.Title && a.URL == art.URL {
+			aq.articles = append(aq.articles[:i], aq.articles[i+1:]...)
+			return
+		}
+	}
+}
 
 func processArticle(saveTo string, a article) {
 	wgWXMP.Add(2) // 1 for downloading, 1 for converting
 	semaArticle.Acquire()
+	inProgress.add(a)
 	defer func() {
 		semaArticle.Release()
 		wgWXMP.Done()
@@ -126,6 +158,8 @@ func processArticle(saveTo string, a article) {
 		convertToPDF(inputFilePath, outputFilePath)
 		semaPDF.Release()
 		wgWXMP.Done()
+		inProgress.remove(a)
+		inProgress.status()
 	}()
 }
 

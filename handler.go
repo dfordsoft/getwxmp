@@ -173,7 +173,7 @@ func getArticleList() {
 	}
 
 	fmt.Println(inputPaths)
-	if err := mergePDF(inputPaths, wxmpTitle+".pdf"); err != nil {
+	if err := mergePDFs(inputPaths, wxmpTitle+".pdf"); err != nil {
 		log.Println("merging PDF documents failed", err)
 		return
 	}
