@@ -24,7 +24,7 @@ var (
 	articleListRequestURL    string
 	articleListRequestHeader http.Header
 	wgWXMP                   sync.WaitGroup
-	articles                 []article
+	articleCount             int
 )
 
 const (
@@ -100,8 +100,8 @@ func onRequestWeixinMPArticleList(req *http.Request, ctx *goproxy.ProxyCtx) (*ht
 
 func getArticleList() {
 	rand.Seed(time.Now().UnixNano())
-	articles = []article{}
-
+	var articles []article
+	articleCount = 0
 	duplicateArticle := func(a article) bool {
 		for _, art := range articles {
 			if a.URL == art.URL {
@@ -135,12 +135,13 @@ func getArticleList() {
 			_, e := url.Parse(strings.Replace(v.AppMsgExtInfo.ContentURL, `&amp;`, `&`, -1))
 			if v.AppMsgExtInfo.Title != "" && e == nil && titleFilter(v.AppMsgExtInfo.Title) {
 				a := article{
-					SaveAs: fmt.Sprintf("%d%s", len(articles)+1, titleSuffix),
+					SaveAs: fmt.Sprintf("%d%s", articleCount+1, titleSuffix),
 					Title:  v.AppMsgExtInfo.Title,
 					URL:    strings.Replace(v.AppMsgExtInfo.ContentURL, `&amp;`, `&`, -1),
 				}
 				if !duplicateArticle(a) {
 					articles = append(articles, a)
+					articleCount = len(articles)
 					startDownloadArticle <- true
 					articleQueue <- a
 				}
@@ -149,12 +150,13 @@ func getArticleList() {
 				_, e := url.Parse(strings.Replace(vv.ContentURL, `&amp;`, `&`, -1))
 				if vv.Title != "" && e == nil && titleFilter(vv.Title) {
 					a := article{
-						SaveAs: fmt.Sprintf("%d%s", len(articles)+1, titleSuffix),
+						SaveAs: fmt.Sprintf("%d%s", articleCount+1, titleSuffix),
 						Title:  vv.Title,
 						URL:    strings.Replace(vv.ContentURL, `&amp;`, `&`, -1),
 					}
 					if !duplicateArticle(a) {
 						articles = append(articles, a)
+						articleCount = len(articles)
 						startDownloadArticle <- true
 						articleQueue <- a
 					}

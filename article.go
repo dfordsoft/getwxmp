@@ -437,12 +437,13 @@ func convertToPDF(inputFilePath string, outputFilePath string) {
 	cmd := exec.Command("phantomjs", "rasterize.js", inputFilePath, outputFilePath, opts.PaperSize, opts.Zoom, opts.Margin)
 	cmd.Run()
 }
+
 func postArticleConverted() {
-	fmt.Printf("总共下载%d篇文章，并已转换为PDF格式，准备合并为 %s.pdf\n", len(articles), wxmpTitle)
+	fmt.Printf("总共下载%d篇文章，并已转换为PDF格式，准备合并为 %s.pdf\n", articleCount, wxmpTitle)
 
 	// merge those PDFs into a single big PDF document
 	var inputPaths []string
-	for i := 0; i < len(articles); i++ {
+	for i := 0; i < articleCount; i++ {
 		inputFilePath := fmt.Sprintf("%s/%d%s.pdf", wxmpTitle, i+1, titleSuffix)
 		if b, _ := fsutil.FileExists(inputFilePath); b {
 			if opts.ReverseOrder {
