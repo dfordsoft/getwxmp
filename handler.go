@@ -83,15 +83,6 @@ type mpList struct {
 	} `json:"list"`
 }
 
-func duplicateArticle(a article) bool {
-	for _, art := range articles {
-		if a.URL == art.URL {
-			return true
-		}
-	}
-	return false
-}
-
 func onRequestWeixinMPArticleList(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
 	if articleListRequestURL != "" {
 		return req, nil
@@ -110,6 +101,16 @@ func onRequestWeixinMPArticleList(req *http.Request, ctx *goproxy.ProxyCtx) (*ht
 func getArticleList() {
 	rand.Seed(time.Now().UnixNano())
 	articles = []article{}
+
+	duplicateArticle := func(a article) bool {
+		for _, art := range articles {
+			if a.URL == art.URL {
+				return true
+			}
+		}
+		return false
+	}
+
 	for i := 0; ; i += 10 {
 		u := strings.Replace(articleListRequestURL, "offset=0", fmt.Sprintf("offset=%d", i), -1)
 		b, e := httputil.GetBytes(u, articleListRequestHeader, 30*time.Second, 3)
