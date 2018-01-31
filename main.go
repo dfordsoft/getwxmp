@@ -76,48 +76,7 @@ func setCA(caCert, caKey string) error {
 	return nil
 }
 
-func main() {
-	p := map[string]int{
-		"windows":   30,
-		"darwin":    15,
-		"android":   5,
-		"linux":     30,
-		"dragonfly": 30,
-		"freebsd":   30,
-		"netbsd":    30,
-		"openbsd":   30,
-		"saloris":   30,
-		"plan9":     30,
-	}
-	opts.Parallel = p[runtime.GOOS]
-
-	_, err := flags.Parse(&opts)
-	if err != nil {
-		if err.(*flags.Error).Type != flags.ErrHelp {
-			log.Fatalln("invalid command line options", err)
-		}
-		return
-	}
-
-	if opts.UpdateProxyOnly {
-		updateProxy()
-		return
-	}
-
-	
-
-	semaImage = semaphore.New(opts.Parallel * 10)
-	semaArticle = semaphore.New(opts.Parallel)
-	titleFilter = filter.Filter(opts.Filter)
-
-	if err := setCA(opts.CaCert, opts.CaKey); err != nil {
-		log.Fatalln(err)
-	}
-
-	if !opts.DirectConnecting {
-		go updateProxyPierodically()
-	}
-
+func setProxy() *goproxy.ProxyHttpServer {
 	proxy := goproxy.NewProxyHttpServer()
 	proxy.OnRequest().HandleConnect(goproxy.AlwaysMitm)
 
@@ -172,5 +131,50 @@ func main() {
 	if opts.Verbose == false && opts.DisableProxyLog {
 		proxy.Logger = log.New(ioutil.Discard, "GOPROXY: ", log.Ldate|log.Ltime|log.Lshortfile)
 	}
+
+	return proxy
+}
+
+func main() {
+	p := map[string]int{
+		"windows":   30,
+		"darwin":    15,
+		"android":   5,
+		"linux":     30,
+		"dragonfly": 30,
+		"freebsd":   30,
+		"netbsd":    30,
+		"openbsd":   30,
+		"saloris":   30,
+		"plan9":     30,
+	}
+	opts.Parallel = p[runtime.GOOS]
+
+	_, err := flags.Parse(&opts)
+	if err != nil {
+		if err.(*flags.Error).Type != flags.ErrHelp {
+			log.Fatalln("invalid command line options", err)
+		}
+		return
+	}
+
+	if opts.UpdateProxyOnly {
+		updateProxy()
+		return
+	}
+
+	semaImage = semaphore.New(opts.Parallel * 10)
+	semaArticle = semaphore.New(opts.Parallel)
+	titleFilter = filter.Filter(opts.Filter)
+
+	if err := setCA(opts.CaCert, opts.CaKey); err != nil {
+		log.Fatalln(err)
+	}
+
+	if !opts.DirectConnecting {
+		go updateProxyPierodically()
+	}
+
+	proxy := setProxy()
 	log.Fatal(http.ListenAndServe(opts.Address, proxy))
 }
