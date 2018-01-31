@@ -7,7 +7,7 @@ import (
 	pdf "github.com/unidoc/unidoc/pdf/model"
 )
 
-func mergePDFDocument(inputPath string, pdfWriter pdf.PdfWriter) error {
+func mergePDFDocument(inputPath string, pdfWriter *pdf.PdfWriter) error {
 	f, err := os.Open(inputPath)
 	if err != nil {
 		return err
@@ -61,7 +61,7 @@ func mergePDFs(inputPaths []string, outputPath string) error {
 	pdfWriter := pdf.NewPdfWriter()
 
 	for _, inputPath := range inputPaths {
-		if err := mergePDFDocument(inputPath, pdfWriter); err != nil {
+		if err := mergePDFDocument(inputPath, &pdfWriter); err != nil {
 			return err
 		}
 	}
