@@ -142,7 +142,6 @@ func getArticleList() {
 				if !duplicateArticle(a) {
 					articles = append(articles, a)
 					articleCount = len(articles)
-					startDownloadArticle <- true
 					articleQueue <- a
 				}
 			}
@@ -157,7 +156,6 @@ func getArticleList() {
 					if !duplicateArticle(a) {
 						articles = append(articles, a)
 						articleCount = len(articles)
-						startDownloadArticle <- true
 						articleQueue <- a
 					}
 				}

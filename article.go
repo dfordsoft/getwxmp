@@ -121,6 +121,7 @@ func downloadArticleInQueue() {
 	for {
 		select {
 		case a := <-articleQueue:
+			startDownloadArticle <- true
 			downloadArticle(a)
 			htmlQueue <- a.SaveAs
 		case <-stopDownload:
