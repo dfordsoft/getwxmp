@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dfordsoft/golib/fsutil"
 	uuid "github.com/satori/go.uuid"
 )
 
@@ -107,30 +108,41 @@ var (
 			}
 		},
 	}
+
+	articleQueue = make(chan article, 2000)
+	htmlQueue    = make(chan string, 2000)
+	stopDownload chan bool
+	stopConvert  chan bool
 )
 
-func processArticle(saveTo string, a article) {
-	wgWXMP.Add(2) // 1 for downloading, 1 for converting
-	semaArticle.Acquire()
-	defer func() {
-		semaArticle.Release()
-		wgWXMP.Done()
-	}()
-	// download article and images
-	downloadArticle(saveTo, a)
-	// convert to PDF
-	go func() {
-		semaPDF.Acquire()
-		inputFilePath := fmt.Sprintf("%s/%s.html", wxmpTitle, saveTo)
-		outputFilePath := fmt.Sprintf("%s/%s.pdf", wxmpTitle, saveTo)
-		convertToPDF(inputFilePath, outputFilePath)
-		semaPDF.Release()
-		wgWXMP.Done()
-	}()
+func downloadArticleInQueue() {
+	for {
+		select {
+		case a := <-articleQueue:
+			downloadArticle(a)
+			htmlQueue <- a.SaveAs
+		case <-stopDownload:
+			return
+		}
+	}
 }
 
-func downloadArticle(saveTo string, a article) bool {
-	fmt.Println("正在下载", a.Title, a.URL, "到", saveTo)
+func convertHTMLInQueue() {
+	for {
+		select {
+		case saveAs := <-htmlQueue:
+			inputFilePath := fmt.Sprintf("%s/%s.html", wxmpTitle, saveAs)
+			outputFilePath := fmt.Sprintf("%s/%s.pdf", wxmpTitle, saveAs)
+			convertToPDF(inputFilePath, outputFilePath)
+			endArticle <- true
+		case <-stopConvert:
+			return
+		}
+	}
+}
+
+func downloadArticle(a article) bool {
+	fmt.Println("正在下载", a.Title, a.URL, "到", a.SaveAs)
 	client := clientPool.Get().(*http.Client)
 	defer func() {
 		clientPool.Put(client)
@@ -177,15 +189,15 @@ doRequest:
 		return true
 	}
 
-	dir := fmt.Sprintf("%s/%s", wxmpTitle, saveTo)
+	dir := fmt.Sprintf("%s/%s", wxmpTitle, a.SaveAs)
 	os.Mkdir(dir, 0755)
-	contentHTML, err := os.OpenFile(wxmpTitle+`/`+saveTo+`.html`, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	contentHTML, err := os.OpenFile(wxmpTitle+`/`+a.SaveAs+`.html`, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
-		log.Println("opening file "+wxmpTitle+`/`+saveTo+`.html`+" for writing failed ", err)
+		log.Println("opening file "+wxmpTitle+`/`+a.SaveAs+`.html`+" for writing failed ", err)
 		return false
 	}
 
-	contentHTML.Write(processArticleContent(saveTo, content))
+	contentHTML.Write(processArticleContent(a.SaveAs, content))
 	contentHTML.Close()
 
 	return true
@@ -406,4 +418,47 @@ func convertToPDF(inputFilePath string, outputFilePath string) {
 	fmt.Println("正在转换", inputFilePath, "为", outputFilePath)
 	cmd := exec.Command("phantomjs", "rasterize.js", inputFilePath, outputFilePath, opts.PaperSize, opts.Zoom, opts.Margin)
 	cmd.Run()
+}
+
+func articleInProgress() {
+	articleInProgress := 0
+	for {
+		select {
+		case <-startArticle:
+			articleInProgress++
+		case <-endArticle:
+			articleInProgress--
+			if articleInProgress == 0 {
+				postArticleConverted()
+				return
+			}
+		}
+	}
+}
+
+func postArticleConverted() {
+	fmt.Printf("总共下载%d篇文章，并已转换为PDF格式，准备合并为 %s.pdf\n", len(articles), wxmpTitle)
+
+	// merge those PDFs into a single big PDF document
+	var inputPaths []string
+	for i := 0; i < len(articles); i++ {
+		inputFilePath := fmt.Sprintf("%s/%d%s.pdf", wxmpTitle, i+1, titleSuffix)
+		if b, _ := fsutil.FileExists(inputFilePath); b {
+			if opts.ReverseOrder {
+				inputPaths = append([]string{inputFilePath}, inputPaths...)
+			} else {
+				inputPaths = append(inputPaths, inputFilePath)
+			}
+		}
+	}
+
+	fmt.Println(inputPaths)
+	if err := mergePDFs(inputPaths, wxmpTitle+".pdf"); err != nil {
+		log.Println("merging PDF documents failed", err)
+		return
+	}
+	fmt.Println("全部PDF已合并为", wxmpTitle+".pdf")
+
+	articleListRequestURL = ""
+	fmt.Println("可以继续抓取其他微信公众号文章了。")
 }

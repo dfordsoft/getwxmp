@@ -3,21 +3,17 @@ package main
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 	"runtime"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/dfordsoft/golib/filter"
 	"github.com/dfordsoft/golib/semaphore"
 	"github.com/elazarl/goproxy"
 	"github.com/elazarl/goproxy/ext/html"
 	flags "github.com/jessevdk/go-flags"
-	"github.com/mozillazg/go-pinyin"
 )
 
 // Options defines structure for command line options
@@ -55,8 +51,6 @@ var (
 		Zoom:             "1",
 	}
 	semaImage   *semaphore.Semaphore
-	semaArticle *semaphore.Semaphore
-	semaPDF     = semaphore.New(15)
 	titleFilter filter.F
 )
 
@@ -91,41 +85,7 @@ func setProxy() *goproxy.ProxyHttpServer {
 		}
 		return false
 	}
-	proxy.OnResponse(resp).Do(goproxy_html.HandleString(func(s string, ctx *goproxy.ProxyCtx) string {
-		beginStr := `<strong class="profile_nickname" id="nickname">`
-		begin := strings.Index(s, beginStr)
-		wxmpTitle = s[begin+len(beginStr):]
-		endStr := `</strong>`
-		end := strings.Index(wxmpTitle, endStr)
-		wxmpTitle = wxmpTitle[:end]
-		t := strings.TrimSpace(wxmpTitle)
-		originalTitle := t
-		wxmpTitle = ""
-		isCJK := false
-		for len(t) > 0 {
-			r, size := utf8.DecodeRuneInString(t)
-			if size == 1 {
-				if isCJK == true {
-					isCJK = false
-					wxmpTitle += "-"
-				}
-				wxmpTitle += string(r)
-			} else {
-				isCJK = true
-				py := pinyin.LazyPinyin(string(r), pinyin.NewArgs())
-				if wxmpTitle == "" {
-					wxmpTitle = py[0]
-				} else {
-					wxmpTitle += "-" + py[0]
-				}
-			}
-			t = t[size:]
-		}
-		fmt.Println("检测到微信公众号", originalTitle, "首页，往下滚动开始抓取所有文章到", wxmpTitle)
-
-		os.Mkdir(wxmpTitle, 0755)
-		return s
-	}))
+	proxy.OnResponse(resp).Do(goproxy_html.HandleString(homepageHandler))
 
 	proxy.Verbose = opts.Verbose
 	if opts.Verbose == false && opts.DisableProxyLog {
@@ -164,7 +124,6 @@ func main() {
 	}
 
 	semaImage = semaphore.New(opts.Parallel * 10)
-	semaArticle = semaphore.New(opts.Parallel)
 	titleFilter = filter.Filter(opts.Filter)
 
 	if err := setCA(opts.CaCert, opts.CaKey); err != nil {
@@ -173,6 +132,13 @@ func main() {
 
 	if !opts.DirectConnecting {
 		go updateProxyPierodically()
+	}
+
+	for i := 0; i < opts.Parallel; i++ {
+		go downloadArticleInQueue()
+	}
+	for i := 0; i < 15; i++ {
+		go convertHTMLInQueue()
 	}
 
 	proxy := setProxy()
