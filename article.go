@@ -111,10 +111,10 @@ var (
 
 	articleQueue         = make(chan article, 2000)
 	htmlQueue            = make(chan string, 2000)
-	stopDownload         chan bool
-	stopConvert          chan bool
-	startDownloadArticle chan bool
-	endConvertArticle    chan bool
+	stopDownload         = make(chan bool)
+	stopConvert          = make(chan bool)
+	startDownloadArticle = make(chan bool)
+	endConvertArticle    = make(chan bool)
 )
 
 func downloadArticleInQueue() {
