@@ -109,10 +109,12 @@ var (
 		},
 	}
 
-	articleQueue = make(chan article, 2000)
-	htmlQueue    = make(chan string, 2000)
-	stopDownload chan bool
-	stopConvert  chan bool
+	articleQueue         = make(chan article, 2000)
+	htmlQueue            = make(chan string, 2000)
+	stopDownload         chan bool
+	stopConvert          chan bool
+	startDownloadArticle chan bool
+	endConvertArticle    chan bool
 )
 
 func downloadArticleInQueue() {
@@ -134,9 +136,25 @@ func convertHTMLInQueue() {
 			inputFilePath := fmt.Sprintf("%s/%s.html", wxmpTitle, saveAs)
 			outputFilePath := fmt.Sprintf("%s/%s.pdf", wxmpTitle, saveAs)
 			convertToPDF(inputFilePath, outputFilePath)
-			endArticle <- true
+			endConvertArticle <- true
 		case <-stopConvert:
 			return
+		}
+	}
+}
+
+func articleInProgress() {
+	articleInProgress := 0
+	for {
+		select {
+		case <-startDownloadArticle:
+			articleInProgress++
+		case <-endConvertArticle:
+			articleInProgress--
+			if articleInProgress == 0 {
+				go postArticleConverted()
+				return
+			}
 		}
 	}
 }
@@ -419,23 +437,6 @@ func convertToPDF(inputFilePath string, outputFilePath string) {
 	cmd := exec.Command("phantomjs", "rasterize.js", inputFilePath, outputFilePath, opts.PaperSize, opts.Zoom, opts.Margin)
 	cmd.Run()
 }
-
-func articleInProgress() {
-	articleInProgress := 0
-	for {
-		select {
-		case <-startArticle:
-			articleInProgress++
-		case <-endArticle:
-			articleInProgress--
-			if articleInProgress == 0 {
-				postArticleConverted()
-				return
-			}
-		}
-	}
-}
-
 func postArticleConverted() {
 	fmt.Printf("总共下载%d篇文章，并已转换为PDF格式，准备合并为 %s.pdf\n", len(articles), wxmpTitle)
 

@@ -25,8 +25,6 @@ var (
 	articleListRequestHeader http.Header
 	wgWXMP                   sync.WaitGroup
 	articles                 []article
-	startArticle             chan bool
-	endArticle               chan bool
 )
 
 const (
@@ -142,7 +140,7 @@ func getArticleList() {
 				}
 				if !duplicateArticle(a) {
 					articles = append(articles, a)
-					startArticle <- true
+					startDownloadArticle <- true
 					articleQueue <- a
 				}
 			}
@@ -156,7 +154,7 @@ func getArticleList() {
 					}
 					if !duplicateArticle(a) {
 						articles = append(articles, a)
-						startArticle <- true
+						startDownloadArticle <- true
 						articleQueue <- a
 					}
 				}
