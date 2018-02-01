@@ -178,10 +178,61 @@ func generateMobiInput(articles []article) bool {
 }
 
 func processHTMLForMobi(c []byte) []byte {
-	c = bytes.Replace(c, []byte("font-size: 1"), []byte("font-size: 3"), -1)
-	c = bytes.Replace(c, []byte("font-size:1"), []byte("font-size:3"), -1)
-	c = bytes.Replace(c, []byte("font-size: 2"), []byte("font-size: 4"), -1)
-	c = bytes.Replace(c, []byte("font-size:2"), []byte("font-size:4"), -1)
-	c = bytes.Replace(c, []byte("href=\"##\""), []byte("href=\"toc.html#toc\""), -1)
+	c = bytes.Replace(c, []byte(`<!--headTrap<body></body><head></head><html></html>-->`), []byte(""), -1)
+	c = bytes.Replace(c, []byte(`<!--tailTrap<body></body><head></head><html></html>-->`), []byte(""), -1)
+
+	startPos := bytes.Index(c, []byte("<script"))
+	endPos := bytes.Index(c, []byte("<title>"))
+	c = append(c[:startPos], c[endPos:]...)
+
+	startPos = bytes.Index(c, []byte("<style>"))
+	endPos = bytes.Index(c, []byte("</head>"))
+	c = append(c[:startPos], c[endPos:]...)
+
+	startPos = bytes.Index(c, []byte("<script"))
+	endPos = bytes.Index(c, []byte("<div class=\"rich_media_content \" id=\"js_content\">"))
+	c = append(c[:startPos], c[endPos:]...)
+
+	startPos = bytes.Index(c, []byte("<script"))
+	endPos = bytes.Index(c, []byte("</body>"))
+	c = append(c[:startPos], c[endPos:]...)
+
+	startPos = bytes.Index(c, []byte("<script"))
+	endPos = bytes.LastIndex(c, []byte("</html>"))
+	c = append(c[:startPos], c[endPos:]...)
+
+	startPos = bytes.Index(c, []byte("<iframe"))
+	endPos = bytes.LastIndex(c, []byte("</iframe>"))
+	c = append(c[:startPos], c[endPos+len("</iframe>"):]...)
+	// remove style attributes
+	leadingStr := ` style="`
+	for startPos = bytes.Index(c, []byte(leadingStr)); startPos > 0; startPos = bytes.Index(c, []byte(leadingStr)) {
+		endPos = bytes.Index(c[startPos+len(leadingStr):], []byte(`"`)) + startPos + len(leadingStr)
+		c = append(c[:startPos], c[endPos+1:]...)
+	}
+
+	// extract paragraphs
+	var ps [][]byte
+	t := c
+	leadingStr = "<p"
+	endingStr := "</p>"
+	for startPos = bytes.Index(t, []byte(leadingStr)); startPos >= 0; startPos = bytes.Index(t, []byte(leadingStr)) {
+		endPos = bytes.Index(t[startPos:], []byte(endingStr))
+		p := t[startPos : startPos+endPos+len(endingStr)]
+		fmt.Println(startPos, endPos, string(p))
+		if string(p) != `<p><br  /></p>` && string(p) != `<p>&nbsp;</p>` {
+			ps = append(ps, p)
+		}
+		t = t[startPos+endPos+len(endingStr):]
+	}
+	// merge paragraphs
+	t = bytes.Join(ps, []byte(""))
+	leadingStr = "<div class=\"rich_media_content \" id=\"js_content\">"
+	startPos = bytes.Index(c, []byte(leadingStr)) + len(leadingStr)
+	endPos = bytes.LastIndex(c, []byte("</div>"))
+	startStr := c[:startPos]
+	endStr := c[endPos:]
+	c = append(append(startStr, t...), endStr...)
+
 	return c
 }
