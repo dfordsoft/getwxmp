@@ -123,14 +123,16 @@ func downloadArticleInQueue() {
 		case a := <-articleQueue:
 			startDownloadArticle <- true
 			downloadArticle(a)
-			htmlQueue <- a.SaveAs
+			if strings.ToLower(opts.Format) == "pdf" {
+				htmlQueue <- a.SaveAs
+			}
 		case <-stopDownload:
 			return
 		}
 	}
 }
 
-func convertHTMLInQueue() {
+func convertHTMLToPDFInQueue() {
 	for {
 		select {
 		case saveAs := <-htmlQueue:
@@ -153,7 +155,13 @@ func articleInProgress() {
 		case <-endConvertArticle:
 			articleInProgress--
 			if articleInProgress == 0 {
-				go postArticleConverted()
+				switch strings.ToLower(opts.Format) {
+				case "pdf":
+					go postConverteHTMLToPDF()
+				case "mobi":
+					fmt.Println(`You need to run kindlegen utility to generate the final mobi file.`)
+					fmt.Printf("For example: kindlegen -c2 -o %s.mobi content.opf\n", wxmpTitle)
+				}
 				return
 			}
 		}
@@ -216,7 +224,7 @@ doRequest:
 		return false
 	}
 
-	contentHTML.Write(processArticleContent(a.SaveAs, content))
+	contentHTML.Write(processArticleHTMLContent(a.SaveAs, content))
 	contentHTML.Close()
 
 	return true
@@ -397,7 +405,7 @@ func parseSrc(b []byte) (originalURL string, ext string) {
 	return
 }
 
-func processArticleContent(saveTo string, c []byte) []byte {
+func processArticleHTMLContent(saveTo string, c []byte) []byte {
 	var wg sync.WaitGroup
 	re, _ := regexp.Compile(`<img[^>]+>`)
 	b := re.FindAllSubmatch(c, -1)
@@ -425,10 +433,17 @@ func processArticleContent(saveTo string, c []byte) []byte {
 	wg.Wait()
 	for originalURL, localPath := range m {
 		c = bytes.Replace(c, []byte(fmt.Sprintf(`data-src="%s"`, originalURL)), []byte(fmt.Sprintf(`src="%s"`, localPath[len(wxmpTitle)+1:])), -1)
-		c = bytes.Replace(c, []byte(originalURL), []byte(localPath[9:]), -1)
+		c = bytes.Replace(c, []byte(originalURL), []byte(localPath[len(wxmpTitle)+1:]), -1)
 	}
 	if opts.FontFamily != "" {
 		c = bytes.Replace(c, []byte(`"Helvetica Neue"`), []byte(opts.FontFamily+`,"Helvetica Neue"`), -1)
+	}
+	if strings.ToLower(opts.Format) == "mobi" {
+		c = bytes.Replace(c, []byte("font-size: 1"), []byte("font-size: 3"), -1)
+		c = bytes.Replace(c, []byte("font-size:1"), []byte("font-size:3"), -1)
+		c = bytes.Replace(c, []byte("font-size: 2"), []byte("font-size: 4"), -1)
+		c = bytes.Replace(c, []byte("font-size:2"), []byte("font-size:4"), -1)
+		c = bytes.Replace(c, []byte("href=\"##\""), []byte("href=\"toc.html#toc\""), -1)
 	}
 	return c
 }
@@ -439,7 +454,7 @@ func convertToPDF(inputFilePath string, outputFilePath string) {
 	cmd.Run()
 }
 
-func postArticleConverted() {
+func postConverteHTMLToPDF() {
 	fmt.Printf("总共下载%d篇文章，并已转换为PDF格式，准备合并为 %s.pdf\n", articleCount, wxmpTitle)
 
 	// merge those PDFs into a single big PDF document
