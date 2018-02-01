@@ -274,7 +274,7 @@ doRequest:
 		return false
 	}
 
-	if ext := filepath.Ext(savePath); strings.ToLower(ext) == ".gif" {
+	if ext := filepath.Ext(savePath); strings.ToLower(ext) == ".gif" && opts.UseLastFrameOfGIF {
 		if err = saveAnimatedGIFAsStaticImage(bytes.NewReader(content), savePath); err == nil {
 			return true
 		}
