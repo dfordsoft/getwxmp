@@ -275,15 +275,12 @@ doRequest:
 	}
 
 	if ext := filepath.Ext(savePath); strings.ToLower(ext) == ".gif" {
-		if err = saveAnimatedGIFAsStaticImage(bytes.NewReader(content), savePath); err != nil {
-			log.Println("saving animated GIF as static image failed", err)
-			return false
+		if err = saveAnimatedGIFAsStaticImage(bytes.NewReader(content), savePath); err == nil {
+			return true
 		}
-	} else {
-		return saveImage(content, savePath)
+		log.Println("saving animated GIF as static image failed", err)
 	}
-
-	return true
+	return saveImage(content, savePath)
 }
 
 func saveImage(b []byte, savePath string) bool {
@@ -439,11 +436,7 @@ func processArticleHTMLContent(saveTo string, c []byte) []byte {
 		c = bytes.Replace(c, []byte(`"Helvetica Neue"`), []byte(opts.FontFamily+`,"Helvetica Neue"`), -1)
 	}
 	if strings.ToLower(opts.Format) == "mobi" {
-		c = bytes.Replace(c, []byte("font-size: 1"), []byte("font-size: 3"), -1)
-		c = bytes.Replace(c, []byte("font-size:1"), []byte("font-size:3"), -1)
-		c = bytes.Replace(c, []byte("font-size: 2"), []byte("font-size: 4"), -1)
-		c = bytes.Replace(c, []byte("font-size:2"), []byte("font-size:4"), -1)
-		c = bytes.Replace(c, []byte("href=\"##\""), []byte("href=\"toc.html#toc\""), -1)
+		return processHTMLForMobi(c)
 	}
 	return c
 }
