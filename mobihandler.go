@@ -1,17 +1,22 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"image"
 	"image/color"
+	"image/draw"
 	"image/jpeg"
+	"io/ioutil"
 	"log"
+	"math"
 	"os"
+	"time"
 
 	"github.com/dfordsoft/golib/fsutil"
+	"github.com/golang/freetype/truetype"
 	"golang.org/x/image/font"
-	"golang.org/x/image/font/basicfont"
 	"golang.org/x/image/math/fixed"
 )
 
@@ -142,27 +147,90 @@ func generateTOCHTML(articles []article) bool {
 func generateCover() bool {
 	// cover.jpg
 	os.Mkdir(wxmpTitle+"/images", 0755)
-	coverImage := image.NewRGBA(image.Rect(0, 0, 800, 600))
-	col := color.RGBA{0, 0, 0, 255}
-	point := fixed.Point26_6{fixed.Int26_6(10 * 64), fixed.Int26_6(200 * 64)}
 
+	// Read the font data.
+	fontBytes, err := ioutil.ReadFile("fonts/CustomFont.ttf")
+	if err != nil {
+		log.Println(err)
+		return false
+	}
+	f, err := truetype.Parse(fontBytes)
+	if err != nil {
+		log.Println(err)
+		return false
+	}
+
+	// Draw the background and the guidelines.
+	fg, bg := image.Black, image.White
+	ruler := color.RGBA{0xdd, 0xdd, 0xdd, 0xff}
+	const imgW, imgH = 800, 600
+	rgba := image.NewRGBA(image.Rect(0, 0, imgW, imgH))
+	draw.Draw(rgba, rgba.Bounds(), bg, image.ZP, draw.Src)
+	for i := 0; i < 200; i++ {
+		rgba.Set(10, 10+i, ruler)
+		rgba.Set(10+i, 10, ruler)
+	}
+
+	const size = 36
+	const dpi = 72
+	const spacing = 1.2
+
+	// Draw the text.
+	h := font.HintingNone
 	d := &font.Drawer{
-		Dst:  coverImage,
-		Src:  image.NewUniform(col),
-		Face: basicfont.Face7x13,
-		Dot:  point,
+		Dst: rgba,
+		Src: fg,
+		Face: truetype.NewFace(f, &truetype.Options{
+			Size:    size,
+			DPI:     dpi,
+			Hinting: h,
+		}),
+	}
+	y := imgH/3 + int(math.Ceil(size*dpi/72))
+	dy := int(math.Ceil(size * spacing * dpi / 72))
+	d.Dot = fixed.Point26_6{
+		X: (fixed.I(imgW) - d.MeasureString(originalTitle)) / 2,
+		Y: fixed.I(y),
 	}
 	d.DrawString(originalTitle)
-	file, err := os.Create(wxmpTitle + "/images/cover.jpg")
+
+	d.Face = truetype.NewFace(f, &truetype.Options{
+		Size:    20,
+		DPI:     dpi,
+		Hinting: h,
+	})
+
+	y += dy
+	t := `微信公众号文章合集`
+	d.Dot = fixed.Point26_6{
+		X: (fixed.I(imgW) - d.MeasureString(t)) / 2,
+		Y: fixed.I(y),
+	}
+	d.DrawString(t)
+	y += dy
+	t = `截止到` + time.Now().Format(time.RFC3339)
+	d.Dot = fixed.Point26_6{
+		X: (fixed.I(imgW) - d.MeasureString(t)) / 2,
+		Y: fixed.I(y),
+	}
+	d.DrawString(t)
+
+	// Save that RGBA image to disk.
+	outFile, err := os.Create(wxmpTitle + "/images/cover.jpg")
 	if err != nil {
 		log.Println("creating cover.jpg failed", err)
 		return false
 	}
-	defer file.Close()
-
-	err = jpeg.Encode(file, coverImage, nil)
+	defer outFile.Close()
+	b := bufio.NewWriter(outFile)
+	err = jpeg.Encode(b, rgba, nil)
 	if err != nil {
 		log.Println("jpeg encoding failed", err)
+		return false
+	}
+	err = b.Flush()
+	if err != nil {
+		log.Println(err)
 		return false
 	}
 
@@ -182,32 +250,44 @@ func processHTMLForMobi(c []byte) []byte {
 	c = bytes.Replace(c, []byte(`<!--tailTrap<body></body><head></head><html></html>-->`), []byte(""), -1)
 
 	startPos := bytes.Index(c, []byte("<script"))
-	endPos := bytes.Index(c, []byte("<title>"))
-	c = append(c[:startPos], c[endPos:]...)
+	if startPos >= 0 {
+		endPos := bytes.Index(c, []byte("<title>"))
+		c = append(c[:startPos], c[endPos:]...)
+	}
 
 	startPos = bytes.Index(c, []byte("<style>"))
-	endPos = bytes.Index(c, []byte("</head>"))
-	c = append(c[:startPos], c[endPos:]...)
+	if startPos >= 0 {
+		endPos := bytes.Index(c, []byte("</head>"))
+		c = append(c[:startPos], c[endPos:]...)
+	}
 
 	startPos = bytes.Index(c, []byte("<script"))
-	endPos = bytes.Index(c, []byte("<div class=\"rich_media_content \" id=\"js_content\">"))
-	c = append(c[:startPos], c[endPos:]...)
+	if startPos >= 0 {
+		endPos := bytes.Index(c, []byte("<div class=\"rich_media_content \" id=\"js_content\">"))
+		c = append(c[:startPos], c[endPos:]...)
+	}
 
 	startPos = bytes.Index(c, []byte("<script"))
-	endPos = bytes.Index(c, []byte("</body>"))
-	c = append(c[:startPos], c[endPos:]...)
+	if startPos >= 0 {
+		endPos := bytes.Index(c, []byte("</body>"))
+		c = append(c[:startPos], c[endPos:]...)
+	}
 
 	startPos = bytes.Index(c, []byte("<script"))
-	endPos = bytes.LastIndex(c, []byte("</html>"))
-	c = append(c[:startPos], c[endPos:]...)
+	if startPos >= 0 {
+		endPos := bytes.LastIndex(c, []byte("</html>"))
+		c = append(c[:startPos], c[endPos:]...)
+	}
 
 	startPos = bytes.Index(c, []byte("<iframe"))
-	endPos = bytes.LastIndex(c, []byte("</iframe>"))
-	c = append(c[:startPos], c[endPos+len("</iframe>"):]...)
+	if startPos >= 0 {
+		endPos := bytes.LastIndex(c, []byte("</iframe>"))
+		c = append(c[:startPos], c[endPos+len("</iframe>"):]...)
+	}
 	// remove style attributes
 	leadingStr := ` style="`
 	for startPos = bytes.Index(c, []byte(leadingStr)); startPos > 0; startPos = bytes.Index(c, []byte(leadingStr)) {
-		endPos = bytes.Index(c[startPos+len(leadingStr):], []byte(`"`)) + startPos + len(leadingStr)
+		endPos := bytes.Index(c[startPos+len(leadingStr):], []byte(`"`)) + startPos + len(leadingStr)
 		c = append(c[:startPos], c[endPos+1:]...)
 	}
 
@@ -217,9 +297,8 @@ func processHTMLForMobi(c []byte) []byte {
 	leadingStr = "<p"
 	endingStr := "</p>"
 	for startPos = bytes.Index(t, []byte(leadingStr)); startPos >= 0; startPos = bytes.Index(t, []byte(leadingStr)) {
-		endPos = bytes.Index(t[startPos:], []byte(endingStr))
+		endPos := bytes.Index(t[startPos:], []byte(endingStr))
 		p := t[startPos : startPos+endPos+len(endingStr)]
-		fmt.Println(startPos, endPos, string(p))
 		if string(p) != `<p><br  /></p>` && string(p) != `<p>&nbsp;</p>` {
 			ps = append(ps, p)
 		}
@@ -229,7 +308,7 @@ func processHTMLForMobi(c []byte) []byte {
 	t = bytes.Join(ps, []byte(""))
 	leadingStr = "<div class=\"rich_media_content \" id=\"js_content\">"
 	startPos = bytes.Index(c, []byte(leadingStr)) + len(leadingStr)
-	endPos = bytes.LastIndex(c, []byte("</div>"))
+	endPos := bytes.LastIndex(c, []byte("</div>"))
 	startStr := c[:startPos]
 	endStr := c[endPos:]
 	c = append(append(startStr, t...), endStr...)
