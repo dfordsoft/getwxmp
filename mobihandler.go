@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"image"
 	"image/color"
@@ -174,4 +175,13 @@ func generateMobiInput(articles []article) bool {
 		generateContentOPF(articles) &&
 		generateTOCHTML(articles) &&
 		generateCover()
+}
+
+func processHTMLForMobi(c []byte) []byte {
+	c = bytes.Replace(c, []byte("font-size: 1"), []byte("font-size: 3"), -1)
+	c = bytes.Replace(c, []byte("font-size:1"), []byte("font-size:3"), -1)
+	c = bytes.Replace(c, []byte("font-size: 2"), []byte("font-size: 4"), -1)
+	c = bytes.Replace(c, []byte("font-size:2"), []byte("font-size:4"), -1)
+	c = bytes.Replace(c, []byte("href=\"##\""), []byte("href=\"toc.html#toc\""), -1)
+	return c
 }
