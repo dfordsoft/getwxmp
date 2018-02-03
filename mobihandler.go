@@ -73,8 +73,9 @@ func generateContentOPF(articles []article) bool {
 		</metadata>
 		<manifest>
 		%s
-			<item id="content" media-type="text/x-oeb1-document" href="toc.html"></item>
+			<item id="content" media-type="text/x-oeb1-document" href="toc.html"/>
 			<item id="ncx" media-type="application/x-dtbncx+xml" href="toc.ncx"/>
+			<item id="cimage" media-type="image/jpeg" href="images/cover.jpg" properties="cover-image"/>
 		</manifest>
 		<spine toc="ncx">
 			<itemref idref="content"/>
