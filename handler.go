@@ -168,7 +168,7 @@ func getArticleList() {
 		if m.CanMsgContinue == 0 {
 			break
 		}
-		time.Sleep(time.Duration(rand.Intn(4000)+1000) * time.Millisecond)
+		time.Sleep(time.Duration(rand.Intn(10000)+5000) * time.Millisecond)
 	}
 
 	if strings.ToLower(opts.Format) == "mobi" {
