@@ -113,22 +113,25 @@ func getArticleList() {
 
 	for i := 0; ; i += 10 {
 		u := strings.Replace(articleListRequestURL, "offset=0", fmt.Sprintf("offset=%d", i), -1)
+	getJSON:
 		b, e := httputil.GetBytes(u, articleListRequestHeader, 30*time.Second, 3)
 		if e != nil {
-			log.Fatalln(e)
+			log.Println("get json failed", e)
 			return
 		}
 		var m getMsgResponse
 		if err := json.Unmarshal(b, &m); err != nil {
-			log.Fatalln(err, string(b))
-			return
+			log.Println(err, string(b))
+			time.Sleep(time.Duration(rand.Intn(4000)+1000) * time.Millisecond)
+			goto getJSON
 		}
 
 		var list mpList
 		err := json.Unmarshal([]byte(m.GeneralMsgList), &list)
 		if err != nil {
-			log.Fatalln(err, m.GeneralMsgList)
-			return
+			log.Println(err, m.GeneralMsgList)
+			time.Sleep(time.Duration(rand.Intn(4000)+1000) * time.Millisecond)
+			goto getJSON
 		}
 
 		for _, v := range list.List {
@@ -182,6 +185,9 @@ func homepageHandler(s string, ctx *goproxy.ProxyCtx) string {
 	wxmpTitle = s[begin+len(beginStr):]
 	endStr := `</strong>`
 	end := strings.Index(wxmpTitle, endStr)
+	if begin < 0 || end < 0 {
+		log.Fatalln(s)
+	}
 	wxmpTitle = wxmpTitle[:end]
 	t := strings.TrimSpace(wxmpTitle)
 	originalTitle = t

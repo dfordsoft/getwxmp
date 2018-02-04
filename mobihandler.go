@@ -251,45 +251,58 @@ func processHTMLForMobi(c []byte) []byte {
 	c = bytes.Replace(c, []byte(`<!--tailTrap<body></body><head></head><html></html>-->`), []byte(""), -1)
 
 	startPos := bytes.Index(c, []byte("<script"))
-	if startPos >= 0 {
-		endPos := bytes.Index(c, []byte("<title>"))
-		c = append(c[:startPos], c[endPos:]...)
+	endPos := bytes.Index(c, []byte("<title>"))
+	if startPos < 0 || endPos < startPos {
+		return []byte{}
 	}
+	c = append(c[:startPos], c[endPos:]...)
 
 	startPos = bytes.Index(c, []byte("<style>"))
-	if startPos >= 0 {
-		endPos := bytes.Index(c, []byte("</head>"))
-		c = append(c[:startPos], c[endPos:]...)
+	endPos = bytes.Index(c, []byte("</head>"))
+	if startPos < 0 || endPos < startPos {
+		return []byte{}
 	}
+	c = append(c[:startPos], c[endPos:]...)
 
 	startPos = bytes.Index(c, []byte("<script"))
-	if startPos >= 0 {
-		endPos := bytes.Index(c, []byte("<div class=\"rich_media_content \" id=\"js_content\">"))
-		c = append(c[:startPos], c[endPos:]...)
+	endPos = bytes.Index(c, []byte("<div class=\"rich_media_content \" id=\"js_content\">"))
+	if startPos < 0 || endPos < startPos {
+		return []byte{}
 	}
+	c = append(c[:startPos], c[endPos:]...)
 
 	startPos = bytes.Index(c, []byte("<script"))
-	if startPos >= 0 {
-		endPos := bytes.Index(c, []byte("</body>"))
-		c = append(c[:startPos], c[endPos:]...)
+	endPos = bytes.Index(c, []byte("</body>"))
+	if startPos < 0 || endPos < startPos {
+		return []byte{}
 	}
+	c = append(c[:startPos], c[endPos:]...)
 
 	startPos = bytes.Index(c, []byte("<script"))
-	if startPos >= 0 {
-		endPos := bytes.LastIndex(c, []byte("</html>"))
-		c = append(c[:startPos], c[endPos:]...)
+	endPos = bytes.LastIndex(c, []byte("</html>"))
+	if startPos < 0 || endPos < startPos {
+		return []byte{}
 	}
+	c = append(c[:startPos], c[endPos:]...)
 
 	startPos = bytes.Index(c, []byte("<iframe"))
-	if startPos >= 0 {
-		endPos := bytes.LastIndex(c, []byte("</iframe>"))
+	endPos = bytes.LastIndex(c, []byte("</iframe>"))
+	if startPos >= 0 && endPos > startPos {
 		c = append(c[:startPos], c[endPos+len("</iframe>"):]...)
+	}
+
+	startPos = bytes.Index(c, []byte("<qqmusic"))
+	endPos = bytes.LastIndex(c, []byte("</qqmusic>"))
+	if startPos >= 0 && endPos > startPos {
+		c = append(c[:startPos], c[endPos+len("</qqmusic>"):]...)
 	}
 	// remove style attributes
 	leadingStr := ` style="`
 	for startPos = bytes.Index(c, []byte(leadingStr)); startPos > 0; startPos = bytes.Index(c, []byte(leadingStr)) {
 		endPos := bytes.Index(c[startPos+len(leadingStr):], []byte(`"`)) + startPos + len(leadingStr)
-		c = append(c[:startPos], c[endPos+1:]...)
+		if endPos > startPos {
+			c = append(c[:startPos], c[endPos+1:]...)
+		}
 	}
 
 	// extract paragraphs
@@ -300,19 +313,28 @@ func processHTMLForMobi(c []byte) []byte {
 	for startPos = bytes.Index(t, []byte(leadingStr)); startPos >= 0; startPos = bytes.Index(t, []byte(leadingStr)) {
 		endPos := bytes.Index(t[startPos:], []byte(endingStr))
 		p := t[startPos : startPos+endPos+len(endingStr)]
-		if string(p) != `<p><br  /></p>` && string(p) != `<p>&nbsp;</p>` {
-			ps = append(ps, p)
-		}
+		ps = append(ps, p)
 		t = t[startPos+endPos+len(endingStr):]
 	}
 	// merge paragraphs
 	t = bytes.Join(ps, []byte(""))
 	leadingStr = "<div class=\"rich_media_content \" id=\"js_content\">"
 	startPos = bytes.Index(c, []byte(leadingStr)) + len(leadingStr)
-	endPos := bytes.LastIndex(c, []byte("</div>"))
+	endPos = bytes.LastIndex(c, []byte("</div>"))
+	if startPos < 0 || endPos < startPos {
+		return []byte{}
+	}
 	startStr := c[:startPos]
 	endStr := c[endPos:]
 	c = append(append(startStr, t...), endStr...)
+
+	c = bytes.Replace(c, []byte(`<strong><br  /></strong>`), []byte(""), -1)
+	c = bytes.Replace(c, []byte(`<span><br  /></span>`), []byte(""), -1)
+	c = bytes.Replace(c, []byte(`<strong></strong>`), []byte(""), -1)
+	c = bytes.Replace(c, []byte(`<span></span>`), []byte(""), -1)
+	c = bytes.Replace(c, []byte(`<p></p>`), []byte(""), -1)
+	c = bytes.Replace(c, []byte(`<p><br  /></p>`), []byte(""), -1)
+	c = bytes.Replace(c, []byte(`<p>&nbsp;</p>`), []byte(""), -1)
 
 	return c
 }

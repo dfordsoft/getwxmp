@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/draw"
 	"image/gif"
+	"image/png"
 	"io"
 	"io/ioutil"
 	"log"
@@ -211,20 +212,21 @@ doRequest:
 		return false
 	}
 
-	invalid := `<p class="title">接相关投诉，此内容违反《即时通信工具公众信息服务发展管理暂行规定》，查看<a href="http://www.cac.gov.cn/2014-08/07/c_1111983456.htm">详细内容</a></p>`
-	if bytes.Contains(content, []byte(invalid)) {
-		return true
-	}
-
 	dir := fmt.Sprintf("%s/%s", wxmpTitle, a.SaveAs)
 	os.Mkdir(dir, 0755)
+
+	b := processArticleHTMLContent(a.SaveAs, content)
+	if len(b) == 0 {
+		return false
+	}
+
 	contentHTML, err := os.OpenFile(wxmpTitle+`/`+a.SaveAs+`.html`, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		log.Println("opening file "+wxmpTitle+`/`+a.SaveAs+`.html`+" for writing failed ", err)
 		return false
 	}
 
-	contentHTML.Write(processArticleHTMLContent(a.SaveAs, content))
+	contentHTML.Write(b)
 	contentHTML.Close()
 
 	return true
@@ -283,6 +285,35 @@ doRequest:
 	return saveImage(content, savePath)
 }
 
+func convertGIFToJPEG(inputPath string, savePath string) bool {
+	file, err := os.Open(inputPath)
+	if err != nil {
+		log.Println("opening file ", inputPath, " for reading failed ", err)
+		return false
+	}
+	defer file.Close()
+
+	img, err := gif.Decode(file)
+	if err != nil {
+		log.Println("decoding file ", inputPath, " for reading failed ", err)
+		return false
+	}
+
+	out, err := os.Create(savePath)
+	if err != nil {
+		log.Println("opening file ", savePath, " for writing failed ", err)
+		return false
+	}
+	defer out.Close()
+	err = png.Encode(out, img)
+	if err != nil {
+		log.Println("encoding file ", savePath, " for writing failed ", err)
+		return false
+	}
+
+	return true
+}
+
 func saveImage(b []byte, savePath string) bool {
 	image, err := os.OpenFile(savePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
@@ -292,6 +323,11 @@ func saveImage(b []byte, savePath string) bool {
 
 	image.Write(b)
 	image.Close()
+
+	if strings.ToLower(filepath.Ext(savePath)) == ".gif" {
+		return convertGIFToJPEG(savePath, savePath[:len(savePath)-3]+"jpg")
+	}
+
 	return true
 }
 
@@ -327,6 +363,7 @@ func saveAnimatedGIFAsStaticImage(reader io.Reader, savePath string) (err error)
 		return err
 	}
 
+	convertGIFToJPEG(savePath, savePath[:len(savePath)-3]+"jpg")
 	return nil
 }
 
@@ -407,16 +444,18 @@ func processArticleHTMLContent(saveTo string, c []byte) []byte {
 	re, _ := regexp.Compile(`<img[^>]+>`)
 	b := re.FindAllSubmatch(c, -1)
 	m := make(map[string]string)
+	var invalids [][]byte
 	for _, bb := range b {
-		if originalURL, ext := parseDataSrc(bb[0]); originalURL != "" && ext != "" {
+		if originalURL, ext := parseDataSrc(bb[0]); originalURL != "" {
 			savePath := fmt.Sprintf("%s/%s/%s.%s", wxmpTitle, saveTo, uuid.Must(uuid.NewV4()).String(), ext)
 			m[originalURL] = savePath
 			wg.Add(1)
 			semaImage.Acquire()
 			go downloadImage(savePath, originalURL, &wg)
+			continue
 		}
 
-		if originalURL, ext := parseSrc(bb[0]); originalURL != "" && ext != "" {
+		if originalURL, ext := parseSrc(bb[0]); originalURL != "" {
 			savePath := fmt.Sprintf("%s/%s/%s.%s", wxmpTitle, saveTo, uuid.Must(uuid.NewV4()).String(), ext)
 			m[originalURL] = savePath
 			if strings.HasPrefix(originalURL, "//") {
@@ -425,9 +464,14 @@ func processArticleHTMLContent(saveTo string, c []byte) []byte {
 			wg.Add(1)
 			semaImage.Acquire()
 			go downloadImage(savePath, originalURL, &wg)
+			continue
 		}
+		invalids = append(invalids, bb[0])
 	}
 	wg.Wait()
+	for _, invalid := range invalids {
+		c = bytes.Replace(c, invalid, []byte(""), -1)
+	}
 	for originalURL, localPath := range m {
 		c = bytes.Replace(c, []byte(fmt.Sprintf(`data-src="%s"`, originalURL)), []byte(fmt.Sprintf(`src="%s"`, localPath[len(wxmpTitle)+1:])), -1)
 		c = bytes.Replace(c, []byte(originalURL), []byte(localPath[len(wxmpTitle)+1:]), -1)
@@ -435,6 +479,8 @@ func processArticleHTMLContent(saveTo string, c []byte) []byte {
 	if opts.FontFamily != "" {
 		c = bytes.Replace(c, []byte(`"Helvetica Neue"`), []byte(opts.FontFamily+`,"Helvetica Neue"`), -1)
 	}
+	c = bytes.Replace(c, []byte(".gif\""), []byte(".jpg\""), -1)
+	c = bytes.Replace(c, []byte("data-type=\"gif\""), []byte("data-type=\"jpg\""), -1)
 	if strings.ToLower(opts.Format) == "mobi" {
 		return processHTMLForMobi(c)
 	}
