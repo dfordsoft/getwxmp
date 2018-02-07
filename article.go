@@ -7,7 +7,6 @@ import (
 	"image/draw"
 	"image/gif"
 	"image/jpeg"
-	"image/png"
 	"io"
 	"io/ioutil"
 	"log"
@@ -299,7 +298,7 @@ func convertGIFBinaryToJPEG(b []byte, savePath string) bool {
 		return false
 	}
 	defer out.Close()
-	err = png.Encode(out, img)
+	err = jpeg.Encode(out, img, nil)
 	if err != nil {
 		log.Println("encoding file ", savePath, " for writing failed ", err)
 		return false
