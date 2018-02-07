@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/draw"
 	"image/gif"
+	"image/jpeg"
 	"image/png"
 	"io"
 	"io/ioutil"
@@ -285,17 +286,10 @@ doRequest:
 	return saveImage(content, savePath)
 }
 
-func convertGIFToJPEG(inputPath string, savePath string) bool {
-	file, err := os.Open(inputPath)
+func convertGIFBinaryToJPEG(b []byte, savePath string) bool {
+	img, err := gif.Decode(bytes.NewReader(b))
 	if err != nil {
-		log.Println("opening file ", inputPath, " for reading failed ", err)
-		return false
-	}
-	defer file.Close()
-
-	img, err := gif.Decode(file)
-	if err != nil {
-		log.Println("decoding file ", inputPath, " for reading failed ", err)
+		log.Println("decoding gif binary failed ", err)
 		return false
 	}
 
@@ -315,6 +309,10 @@ func convertGIFToJPEG(inputPath string, savePath string) bool {
 }
 
 func saveImage(b []byte, savePath string) bool {
+	if strings.ToLower(filepath.Ext(savePath)) == ".gif" {
+		return convertGIFBinaryToJPEG(b, savePath[:len(savePath)-3]+"jpg")
+	}
+
 	image, err := os.OpenFile(savePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		log.Println("opening file ", savePath, " for writing failed ", err)
@@ -323,10 +321,6 @@ func saveImage(b []byte, savePath string) bool {
 
 	image.Write(b)
 	image.Close()
-
-	if strings.ToLower(filepath.Ext(savePath)) == ".gif" {
-		return convertGIFToJPEG(savePath, savePath[:len(savePath)-3]+"jpg")
-	}
 
 	return true
 }
@@ -351,20 +345,14 @@ func saveAnimatedGIFAsStaticImage(reader io.Reader, savePath string) (err error)
 	for _, srcImg := range gifImage.Image {
 		draw.Draw(overpaintImage, overpaintImage.Bounds(), srcImg, image.ZP, draw.Over)
 	}
-	// save current frame "stack". This will overwrite an existing file with that name
-	file, err := os.Create(savePath)
+	// save as jpeg
+	file, err := os.Create(savePath[:len(savePath)-3] + "jpg")
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	err = gif.Encode(file, overpaintImage, nil)
-	if err != nil {
-		return err
-	}
-
-	convertGIFToJPEG(savePath, savePath[:len(savePath)-3]+"jpg")
-	return nil
+	return jpeg.Encode(file, overpaintImage, nil)
 }
 
 func getGifDimensions(gif *gif.GIF) (x, y int) {
