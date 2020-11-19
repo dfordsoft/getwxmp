@@ -13,7 +13,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/dfordsoft/golib/httputil"
+	"github.com/missdeer/golib/httputil"
 	"github.com/elazarl/goproxy"
 	pinyin "github.com/mozillazg/go-pinyin"
 )

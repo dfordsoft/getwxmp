@@ -9,8 +9,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/dfordsoft/golib/filter"
-	"github.com/dfordsoft/golib/semaphore"
+	"github.com/missdeer/golib/filter"
+	"github.com/missdeer/golib/semaphore"
 	"github.com/elazarl/goproxy"
 	"github.com/elazarl/goproxy/ext/html"
 	flags "github.com/jessevdk/go-flags"

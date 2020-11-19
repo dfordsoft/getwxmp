@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dfordsoft/golib/semaphore"
+	"github.com/missdeer/golib/semaphore"
 )
 
 var (

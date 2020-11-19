@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dfordsoft/golib/fsutil"
+	"github.com/missdeer/golib/fsutil"
 	uuid "github.com/satori/go.uuid"
 )
 

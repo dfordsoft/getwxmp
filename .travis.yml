@@ -3,9 +3,9 @@ go:
 - tip
 env:
   global:
-  - GITHUB_REPO: dfordsoft/getwxmp
+  - GITHUB_REPO: missdeer/getwxmp
   - GIT_NAME: missdeer
-  - GIT_EMAIL: missdeer@dfordsoft.com
+  - GIT_EMAIL: missdeer@missdeer.com
 deploy:
   provider: releases
   api_key:
@@ -36,11 +36,11 @@ deploy:
     - getwxmp-windows-amd64.tar.gz
     - getwxmp-windows-x86.tar.gz
   on:
-    repo: dfordsoft/getwxmp
+    repo: missdeer/getwxmp
     tags: true
   skip_cleanup: true
 install:
-  - go get github.com/dfordsoft/getwxmp
+  - go get github.com/missdeer/getwxmp
 script:
   - pwd && ls -l
   - env GOARCH=amd64 GOOS=linux go build -ldflags="-s -w"  && tar czvf getwxmp-linux-amd64.tar.gz cert/ca.key rasterize.js proxy.json cert/ca.cer getwxmp
